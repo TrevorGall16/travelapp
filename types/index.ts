@@ -18,3 +18,38 @@ export interface Country {
   name: string;
   flag: string;
 }
+
+export type EventCategory =
+  | 'beer'
+  | 'food'
+  | 'sightseeing'
+  | 'adventure'
+  | 'culture'
+  | 'other';
+
+export type EventStatus = 'active' | 'expired';
+
+/** Raw row returned by the `get_events_within_radius` RPC.
+ *  The PostGIS `location` column comes back as a hex EWKB string. */
+export interface DBEvent {
+  id: string;
+  host_id: string;
+  title: string;
+  description: string | null;
+  category: EventCategory;
+  location: string; // hex EWKB — parse with parsePointFromWKB()
+  status: EventStatus;
+  verified_only: boolean;
+  participant_count: number;
+  expires_at: string;
+  maps_taps: number;
+  arrivals: number;
+  post_event_messages: number;
+  created_at: string;
+}
+
+/** Client-side event — `location` WKB already parsed into lat/lon. */
+export interface Event extends Omit<DBEvent, 'location'> {
+  latitude: number;
+  longitude: number;
+}
