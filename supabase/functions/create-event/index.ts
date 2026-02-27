@@ -158,22 +158,19 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'Failed to create event' }, 500);
   }
 
-  // ── 5. Insert host into event_participants ───────────────────────────────
-  // The DB trigger (trigger_update_participant_count) will fire and increment
-  // participant_count from 0 → 1 on this insert.
+// ── 5. Insert host into event_participants ───────────────────────────────
   const { error: participantError } = await serviceClient
     .from('event_participants')
     .insert({ event_id: event.id, user_id: user.id });
 
   if (participantError) {
-    // Non-fatal: log but continue — Stream channel can still be created.
-    // The event exists and will be visible on the map.
-    console.error('[create-event] event_participants insert error:', participantError.message);
+    // FATAL: If we can't add the host, delete the event and abort.
+    console.error('[create-event] Fatal participant insert error:', participantError.message);
+    await serviceClient.from('events').delete().eq('id', event.id);
+    return jsonResponse({ error: 'Failed to join own event' }, 500);
   }
 
   // ── 6. Create Stream.io channel ──────────────────────────────────────────
-  // Channel type: messaging, ID: event_{supabase_event_id} (per REALTIME_ARCHITECTURE.md §2.1)
-  // Always created server-side — never client-side.
   try {
     const streamClient = StreamChat.getInstance(STREAM_API_KEY, STREAM_SECRET_KEY);
     const channelId = `event_${event.id}`;
@@ -186,9 +183,10 @@ Deno.serve(async (req: Request) => {
 
     await channel.create();
   } catch (streamErr) {
-    // Log but don't fail the whole request — the DB record is the source of truth.
-    // The channel can be recreated via an admin script if needed.
-    console.error('[create-event] Stream channel creation failed:', streamErr);
+    // FATAL: If the chat channel fails, the app breaks. Delete the DB row and abort.
+    console.error('[create-event] Fatal Stream channel creation failed:', streamErr);
+    await serviceClient.from('events').delete().eq('id', event.id);
+    return jsonResponse({ error: 'Failed to initialize chat room' }, 500);
   }
 
   return jsonResponse({ event });

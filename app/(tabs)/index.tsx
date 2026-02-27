@@ -27,6 +27,7 @@ import { Plus } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { useLocationStore } from '../../stores/locationStore';
 import { useMapStore } from '../../stores/mapStore';
+import EventCard from '../../components/map/EventCard';
 import type { DBEvent, Event, EventCategory } from '../../types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -155,6 +156,7 @@ export default function MapScreen() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [clusters, setClusters] = useState<ClusterOutput[]>([]);
   const [region, setRegion] = useState<Region | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   const mapRef = useRef<MapView>(null);
   const lastFetchRef = useRef<{ latitude: number; longitude: number } | null>(
@@ -443,9 +445,10 @@ export default function MapScreen() {
 
   const handlePinPress = useCallback(
     (eventId: string) => {
-      router.push({ pathname: '/event/[id]', params: { id: eventId } });
+      const found = events.find((e) => e.id === eventId) ?? null;
+      setSelectedEvent(found);
     },
-    [router],
+    [events],
   );
 
   // ── Marker rendering ──────────────────────────────────────────────────────
@@ -590,6 +593,12 @@ export default function MapScreen() {
       >
         <Plus color="#FFFFFF" size={28} strokeWidth={2.5} />
       </Pressable>
+
+      {/* Event Card bottom sheet — rendered last so it sits above everything */}
+      <EventCard
+        event={selectedEvent}
+        onDismiss={() => setSelectedEvent(null)}
+      />
     </View>
   );
 }
