@@ -1,0 +1,142 @@
+# MASTER_PRODUCT_SPEC.md
+
+**For:** Builder AI  
+**Project:** Solo Travel Social App (NomadMeet - Working Title)  
+**Purpose:** The absolute single source of truth for all product decisions, UI flows, and technical boundaries. If a feature or rule is not in this document, do NOT build it without asking.
+
+---
+
+## 1. CORE IDENTITY
+- **One sentence:** A real-time map where solo travelers drop pins to create spontaneous meetup events, join each other's events, and coordinate the actual meetup through a reliable group chat with a built-in authoritative meeting point system.
+- **Philosophy:** Map pin = discovery only. Chat = social coordination. Meetup point = single authoritative anchor. Expiry = hard boundary.
+- **What this app is NOT:** A dating app, a social feed, a travel planner, or a permanent community tool.
+
+---
+
+## 2. TECH STACK & INFRASTRUCTURE BOUNDARIES
+- **Framework:** React Native with Expo (Managed workflow, NO native code ejection).
+- **Routing:** Expo Router (file-based).
+- **State:** Zustand (strictly for `authStore`, `locationStore`, `mapStore`).
+- **Database & Auth:** Supabase (PostgreSQL with PostGIS for location).
+- **Live Map Data:** Supabase Realtime (Postgres CDC).
+- **Chat Engine & Chat Media:** Stream.io React Native SDK. (All chat text, images, and polls live here. Zero chat data in Supabase).
+- **Profile Media:** Supabase Storage (Profile pictures only).
+- **Maps:** `react-native-maps` (Apple Maps on iOS, Google Maps on Android. Do NOT use Mapbox).
+- **Clustering:** `supercluster` library.
+- **Payments:** RevenueCat (`react-native-purchases`). No Stripe SDK.
+- **Push Notifications:** Expo Push Notifications via Supabase Edge Functions.
+
+---
+
+## 3. VISUAL DESIGN & NAVIGATION
+### 3.1 Styling
+- **Theme:** Native system default (Light/Dark mode). Both must be fully implemented.
+- **Accent Color:** Electric Blue (buttons, active pins, verified badge rings).
+- **Map Style:** Clean street map. No satellite/terrain. User's location is a standard blue dot.
+- **Event Pins:** Teardrop map pin containing a category emoji (🍺, 🍜, 🏛️, 🧗, 🎭, 📍). Verified hosts have an electric blue ring around their pin.
+
+### 3.2 Navigation (3 Bottom Tabs - Exact Order)
+1. **Map** (Default on launch. Includes top-right toggle for List View).
+2. **My Events** (Joined + created events combined).
+3. **Profile** (Own profile and settings).
+*(Note: Chat screens open full-screen over the tabs. They are not a tab.)*
+
+---
+
+## 4. ONBOARDING & AUTH
+1. **Auth:** Google OAuth or Apple Sign In. No email/password.
+2. **Profile Setup (Mandatory):** - Upload Profile Photo (face required, saves to Supabase Storage).
+   - Display Name (First name only, max 20 chars).
+   - Home Country (Searchable dropdown).
+   - Bio (Optional, max 160 chars).
+   - Instagram Handle (Optional, auto-strips the `@`).
+3. **Permissions:** Request Location ("While Using App"). Block map access if permanently denied, show `Linking.openSettings()` button.
+
+---
+
+## 5. MONETIZATION & VERIFICATION (V1)
+### 5.1 Verified Traveler Badge (€4.99 One-Time IAP)
+- **Purchase:** Triggered via RevenueCat.
+- **Flow:** Pay €4.99 -> Submit Instagram Handle -> DB row sets `verified = 'pending'`.
+- **Admin Review:** Manual via Supabase Studio.
+  - *Approved:* DB updates to `verified = true`, badge appears instantly via Realtime.
+  - *Rejected:* DB updates to `verified = 'rejected'`. User gets push notification. Profile UI shows "Verification Rejected: Please ensure your Instagram is public" with a "Resubmit" button (updates DB back to pending without charging again).
+- **Badge UI:** Blue checkmark next to name, electric blue ring on map pins.
+
+### 5.2 Limits
+- **Free Users:** Max 1 active event at a time.
+- **Verified Users:** Unlimited active events. Can toggle "Verified travelers only" on their events.
+
+---
+
+## 6. MAP & DISCOVERY
+- **Radius:** 5km from user's current coordinates (PostGIS `ST_DWithin` on initial RPC fetch, client-side filtering on Realtime subscription).
+- **Clustering:** Max 50 individual pins visible. Beyond 50, `supercluster` takes over (50px radius at zoom 12). Tap cluster to expand.
+- **Critical Rule:** Map pin is for DISCOVERY ONLY. It is never linked to the actual meetup coordinates.
+- **Event Card (Bottom Sheet on Pin Tap):** Shows Title, Emoji, Host info, Participant count/avatars, Countdown timer, "Official Meetup Point" status, and primary "Join Event" CTA.
+
+---
+
+## 7. EVENT CREATION & LIFECYCLE
+### 7.1 Creation
+- **Fields:** Title (10-60 chars), Category (emoji selector), Discovery Pin Location (draggable, defaults to current GPS), Expiry Time (2h/4h/8h/Tomorrow 9AM).
+- **Action:** Optimistic UI update on map. User auto-joins as host. Stream channel created.
+
+### 7.2 Expiry & Extension
+- **Extension:** Host can extend once (+4 hours) unless <30 mins remain.
+- **Countdown Colors:** Green (>60m), Yellow (60-30m), Red (<30m).
+- **Auto-Expiry:** Server-side `pg_cron` calls Edge Function. Event DB status goes to `expired`. Pin vanishes instantly.
+- **Post-Expiry (Model B):** - Chat becomes read-only (Stream channel frozen).
+  - Meetup point locks permanently (padlock icon).
+  - Host sees "Reopen Chat" button. If tapped, previous participants can chat again (no new joins). Header turns slate gray.
+- **Hard Deletion:** All event data, chat history, and media auto-delete 7 days after expiry.
+
+---
+
+## 8. MEETUP POINT SYSTEM & CHAT
+### 8.1 Meetup Point (Single Source of Truth)
+- **Storage:** Stream channel `custom data` (NOT Supabase).
+- **Control:** Host only. Max 3 updates per hour. 
+- **UI:** Permanently fixed banner above the chat feed showing label, distance, and "Open in Maps".
+- **Offline:** Last coordinates and deep link cached locally.
+
+### 8.2 Group Chat (Stream.io)
+- **Media:** Images only (Max 5MB, compressed client-side, stored by Stream). NO VIDEO in V1.
+- **Consensus/Voting:** Handled via Stream **Polls**. If the host is inactive, participants tap the `📎` icon -> select "Poll" -> cast votes in the chat feed on where to go. No custom database voting tables.
+- **Features:** WhatsApp-style inline replies, edit/delete own messages, typing indicators, read receipts.
+- **Host Tools ("..."):** Set/Update Meetup Point, End Event Early, Remove Participant.
+
+---
+
+## 9. PROFILE & SETTINGS SCREENS
+### 9.1 Profile Tab (Own)
+- **Top:** Photo, Name, Badge, Country flag, Bio, IG link, "Events Hosted" count.
+- **Action Buttons:** "Edit Profile", "Get Verified" (if unverified).
+
+### 9.2 Settings Screen (Accessed via Profile)
+- **Account:** Email (read-only), "Restore Purchases", "Sign Out", "Delete Account" (Red CTA).
+- **Notifications (Toggles):** "New messages", "Meetup point updated", "Event expiring soon".
+- **Privacy:** "Blocked Users" list (with unblock buttons).
+- **Legal/Support:** "Contact Us", "Terms of Service", "Privacy Policy".
+
+---
+
+## 10. SAFETY, MODERATION, & DESTRUCTIVE ACTIONS
+- **Reporting:** Fake Profile / Harassment / Spam. Submits to Supabase `reports` table. Host not notified.
+- **Blocking:** Global block. User disappears from map and events. Silent.
+- **Account Deletion:** User types "DELETE". Calls Edge Function `delete-user-account`. Triggers complete wipe: Stream user deleted, Supabase Auth deleted, all DB rows/events cascade deleted. No grace period.
+- **Location Privacy:** Exact user coordinates are NEVER saved to the database. Only distance to meetup is shown.
+
+---
+
+## 11. EDGE FUNCTIONS INVENTORY (REQUIRED)
+1. `create-event` (DB insert + Stream channel + add host).
+2. `join-event` / `leave-event` (Stream membership sync).
+3. `generate-stream-token` (Runs on auth success).
+4. `process-expiring-events` (`pg_cron` batch update, freezes Stream channels).
+5. `verify-traveler-purchase` (RevenueCat receipt validation).
+6. `delete-user-account` (Complete cross-platform data wipe).
+7. `send-push-notification` (Expo Push API wrapper).
+
+---
+*End of MASTER_PRODUCT_SPEC.md*
