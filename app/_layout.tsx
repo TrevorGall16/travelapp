@@ -1,11 +1,21 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { Colors } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 import type { Profile } from '../types';
+
+/** A profile is only complete when the user has explicitly finished setup.
+ *  String-based checks on display_name/country_code are unreliable because
+ *  the handle_new_user() trigger inserts placeholder values to satisfy NOT NULL
+ *  constraints (e.g. pulling display_name from Google OAuth metadata).
+ *  The setup_completed boolean is the single authoritative source of truth. */
+function isProfileComplete(profile: Profile | null): boolean {
+  return profile?.setup_completed === true;
+}
 
 export default function RootLayout() {
   const {
@@ -50,8 +60,8 @@ export default function RootLayout() {
       try {
         const { data, error } = await supabase.functions.invoke('generate-stream-token');
 
-        // Log the full raw response so we can see exactly what came back.
-        console.log('[Stream] generate-stream-token raw response →',
+        console.log(
+          '[Stream] generate-stream-token raw response →',
           'data:', JSON.stringify(data),
           '| error:', JSON.stringify(error),
         );
@@ -85,9 +95,8 @@ export default function RootLayout() {
           setProfile(profileData);
 
           // Only fetch Stream token for users who have completed setup.
-          // New users (display_name null) don't need it yet.
-          const setupDone = !!profileData?.display_name?.trim();
-          if (setupDone && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+          // New users (setup_completed = false) don't need it yet.
+          if (isProfileComplete(profileData) && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
             await fetchStreamToken();
           }
         } else {
@@ -117,43 +126,43 @@ export default function RootLayout() {
     // and setProfile has been called — so user + profile are always in sync here.
     if (!isInitialized) return;
 
-    // /(auth)/setup  →  segments = ['(auth)', 'setup']
-    // /(auth)/       →  segments = ['(auth)', 'index'] or ['(auth)']
-    // /(tabs)/       →  segments = ['(tabs)', 'index'] or ['(tabs)']
     const inAuthGroup  = segments[0] === '(auth)';
     const onSetupScreen = inAuthGroup && segments[1] === 'setup';
+    const profileDone  = isProfileComplete(profile);
 
     if (!user) {
-      // Logged out — ensure we're in the auth group
+      // Logged out — ensure we're in the auth group.
       if (!inAuthGroup) router.replace('/(auth)/');
 
-    } else if (!profile?.display_name?.trim()) {
-      // Logged in but setup not complete (display_name is null/empty).
-      // Only redirect if we're not already on setup to prevent loops.
+    } else if (!profileDone) {
+      // Logged in but onboarding not complete.
+      // Requires BOTH display_name and country_code to be non-empty.
+      // Guard against redirect loops by checking we're not already on setup.
       if (!onSetupScreen) router.replace('/(auth)/setup');
 
     } else {
-      // Logged in + setup complete.
-      // If still inside the auth group (login screen, setup, splash), push to tabs.
+      // Logged in + fully onboarded.
+      // If still inside the auth group (login, setup, splash), push to tabs.
       if (inAuthGroup) router.replace('/(tabs)/');
     }
   }, [user, profile, isInitialized, segments, router]);
 
   // setupComplete gates whether (tabs) screens are included in the navigator.
   // When false, (tabs) literally cannot mount — preventing the map screen from
-  // firing the location permission dialog before setup is done.
-  const setupComplete = !!user && !!profile?.display_name?.trim();
+  // firing the location permission dialog before setup is done, and eliminating
+  // the one-second flash caused by Expo Router mounting the screen before the
+  // navigation guard's redirect fires.
+  const setupComplete = !!user && isProfileComplete(profile);
 
-return (
+  return (
     <SafeAreaProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={styles.flex}>
         {!isInitialized ? (
-          <View style={{ flex: 1, backgroundColor: '#0F172A' }} />
+          <View style={styles.splash} />
         ) : (
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="setup" />
+            {setupComplete && <Stack.Screen name="(tabs)" />}
             <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
             <Stack.Screen name="event/[id]" />
             <Stack.Screen name="user/[id]" />
@@ -163,3 +172,13 @@ return (
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: {
+    flex: 1,
+  },
+  splash: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+});

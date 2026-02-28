@@ -10,6 +10,7 @@ export interface Profile {
   verification_status: VerificationStatus;
   push_token: string | null;
   events_hosted_count: number;
+  setup_completed: boolean;
   created_at: string;
 }
 

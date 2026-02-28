@@ -21,6 +21,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { CountryPicker } from '../../components/auth/CountryPicker';
 import { COUNTRIES } from '../../constants/countries';
+import { Colors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import type { Country } from '../../types';
@@ -174,6 +175,10 @@ export default function SetupScreen() {
           avatar_url: avatarPublicUrl,
           bio: step2.bio || null,
           instagram_handle: igHandle,
+          // Explicit flag — the navigation guard uses this as the sole signal
+          // that onboarding is complete. String checks on display_name/country_code
+          // are unreliable because the DB trigger pre-fills them with placeholders.
+          setup_completed: true,
         })
         .eq('id', user.id)
         .select()
@@ -219,9 +224,7 @@ export default function SetupScreen() {
             </TouchableOpacity>
           )}
           <View style={styles.headerCenter}>
-            <Text style={styles.stepIndicator}>
-              Step {step} of 2
-            </Text>
+            <Text style={styles.stepIndicator}>Step {step} of 2</Text>
             <Text style={styles.title}>
               {step === 1 ? 'Create Your Profile' : 'Add Some Details'}
             </Text>
@@ -252,7 +255,7 @@ export default function SetupScreen() {
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   {isPickingImage ? (
-                    <ActivityIndicator color="#3B82F6" />
+                    <ActivityIndicator color={Colors.accent} />
                   ) : (
                     <>
                       <Text style={styles.avatarPlaceholderIcon}>📷</Text>
@@ -282,7 +285,7 @@ export default function SetupScreen() {
                   <TextInput
                     style={[styles.input, errors1.display_name && styles.inputError]}
                     placeholder="e.g. Alex"
-                    placeholderTextColor="#475569"
+                    placeholderTextColor={Colors.textTertiary}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -298,9 +301,7 @@ export default function SetupScreen() {
                 ) : (
                   <View />
                 )}
-                <Text style={styles.charCount}>
-                  {watch1('display_name').length}/20
-                </Text>
+                <Text style={styles.charCount}>{watch1('display_name').length}/20</Text>
               </View>
             </View>
 
@@ -361,7 +362,7 @@ export default function SetupScreen() {
                   <TextInput
                     style={[styles.input, styles.textArea]}
                     placeholder="Tell travelers a bit about yourself..."
-                    placeholderTextColor="#475569"
+                    placeholderTextColor={Colors.textTertiary}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -372,9 +373,7 @@ export default function SetupScreen() {
                   />
                 )}
               />
-              <Text style={[styles.charCount, styles.charCountRight]}>
-                {bioValue.length}/160
-              </Text>
+              <Text style={styles.charCountRight}>{bioValue.length}/160</Text>
             </View>
 
             {/* Instagram Handle */}
@@ -391,7 +390,7 @@ export default function SetupScreen() {
                     <TextInput
                       style={[styles.input, styles.igInput]}
                       placeholder="yourusername"
-                      placeholderTextColor="#475569"
+                      placeholderTextColor={Colors.textTertiary}
                       // Auto-strip the @ if the user types it
                       value={value?.replace(/^@/, '')}
                       onChangeText={(text) => onChange(text.replace(/^@/, ''))}
@@ -413,7 +412,7 @@ export default function SetupScreen() {
               activeOpacity={0.8}
             >
               {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color={Colors.white} />
               ) : (
                 <Text style={styles.primaryButtonText}>Done ✓</Text>
               )}
@@ -437,7 +436,7 @@ export default function SetupScreen() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: Colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -451,7 +450,7 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 16,
-    color: '#3B82F6',
+    color: Colors.accent,
     marginBottom: 8,
   },
   headerCenter: {
@@ -459,7 +458,7 @@ const styles = StyleSheet.create({
   },
   stepIndicator: {
     fontSize: 12,
-    color: '#3B82F6',
+    color: Colors.accent,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -467,12 +466,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 15,
-    color: '#64748B',
+    color: Colors.textTertiary,
     lineHeight: 22,
   },
   form: {
@@ -487,15 +486,15 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 3,
-    borderColor: '#3B82F6',
+    borderColor: Colors.accent,
   },
   avatarPlaceholder: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#1E293B',
+    backgroundColor: Colors.surface,
     borderWidth: 2,
-    borderColor: '#334155',
+    borderColor: Colors.border,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -506,25 +505,25 @@ const styles = StyleSheet.create({
   },
   avatarPlaceholderText: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     fontWeight: '600',
   },
   avatarHint: {
     fontSize: 10,
-    color: '#475569',
+    color: Colors.textTertiary,
   },
   avatarEditBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#3B82F6',
+    backgroundColor: Colors.accent,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   avatarEditBadgeText: {
     fontSize: 11,
-    color: '#FFFFFF',
+    color: Colors.white,
     fontWeight: '600',
   },
   fieldGroup: {
@@ -533,22 +532,22 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   input: {
-    backgroundColor: '#1E293B',
+    backgroundColor: Colors.surface,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
   },
   inputError: {
-    borderColor: '#EF4444',
+    borderColor: Colors.error,
   },
   textArea: {
     minHeight: 100,
@@ -561,14 +560,16 @@ const styles = StyleSheet.create({
   },
   charCount: {
     fontSize: 12,
-    color: '#475569',
+    color: Colors.textTertiary,
   },
   charCountRight: {
+    fontSize: 12,
+    color: Colors.textTertiary,
     textAlign: 'right',
   },
   errorText: {
     fontSize: 13,
-    color: '#EF4444',
+    color: Colors.error,
   },
   selectRow: {
     flexDirection: 'row',
@@ -578,7 +579,7 @@ const styles = StyleSheet.create({
   selectPlaceholder: {
     flex: 1,
     fontSize: 16,
-    color: '#475569',
+    color: Colors.textTertiary,
   },
   countryFlag: {
     fontSize: 22,
@@ -586,19 +587,19 @@ const styles = StyleSheet.create({
   countryName: {
     flex: 1,
     fontSize: 16,
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
   },
   chevron: {
     fontSize: 20,
-    color: '#475569',
+    color: Colors.textTertiary,
   },
   igRow: {
     flexDirection: 'row',
   },
   igPrefix: {
-    backgroundColor: '#1E293B',
+    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
     borderRightWidth: 0,
     borderTopLeftRadius: 12,
     borderBottomLeftRadius: 12,
@@ -607,7 +608,7 @@ const styles = StyleSheet.create({
   },
   igPrefixText: {
     fontSize: 18,
-    color: '#64748B',
+    color: Colors.textTertiary,
     fontWeight: '500',
   },
   igInput: {
@@ -616,7 +617,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 0,
   },
   primaryButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: Colors.accent,
     borderRadius: 12,
     height: 56,
     alignItems: 'center',
@@ -626,7 +627,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
   buttonDisabled: {
     opacity: 0.45,
@@ -637,6 +638,6 @@ const styles = StyleSheet.create({
   },
   skipButtonText: {
     fontSize: 15,
-    color: '#64748B',
+    color: Colors.textTertiary,
   },
 });
