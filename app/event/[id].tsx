@@ -285,6 +285,27 @@ export default function EventChatScreen() {
 
     const setup = async () => {
       try {
+        // 0. Auto-join the event via Edge Function (idempotent).
+        //    join-event handles: DB insert, Stream addMembers, verified_only gate.
+        //    Calling it for an already-joined user is safe — returns already_member: true.
+        const { data: joinData, error: joinError } = await supabase.functions.invoke(
+          'join-event',
+          { body: { event_id: eventId } },
+        );
+
+        if (joinError) {
+          if (!cancelled) setConnectError('Could not join this event. Please go back and try again.');
+          return;
+        }
+
+        // Application-level error codes returned with HTTP 200
+        const joinCode = (joinData as { code?: string } | null)?.code;
+        if (joinCode === 'VERIFIED_ONLY') {
+          if (!cancelled) setConnectError('This event is open to verified travelers only. Get verified to join.');
+          return;
+        }
+        // EVENT_EXPIRED is non-blocking — existing members can still read history.
+
         // 1. Fetch event metadata from Supabase
         const { data: eventData, error: eventError } = await supabase
           .from('events')
