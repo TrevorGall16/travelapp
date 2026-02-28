@@ -1,3 +1,6 @@
+// Required install (if not already done):
+// npx expo install @react-native-community/datetimepicker
+
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,10 +16,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
@@ -38,31 +43,16 @@ const CATEGORIES: { value: EventCategory; label: string; emoji: string }[] = [
   { value: 'other', label: 'Other', emoji: '📍' },
 ];
 
-type ExpiryOption = '2h' | '4h' | '8h' | 'tomorrow_9am';
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const EXPIRY_OPTIONS: { value: ExpiryOption; label: string }[] = [
-  { value: '2h', label: '2 hours' },
-  { value: '4h', label: '4 hours' },
-  { value: '8h', label: '8 hours' },
-  { value: 'tomorrow_9am', label: 'Tomorrow 9 AM' },
-];
-
-function computeExpiresAt(option: ExpiryOption): Date {
+function formatExpiry(date: Date): string {
   const now = new Date();
-  switch (option) {
-    case '2h':
-      return new Date(now.getTime() + 2 * 60 * 60 * 1000);
-    case '4h':
-      return new Date(now.getTime() + 4 * 60 * 60 * 1000);
-    case '8h':
-      return new Date(now.getTime() + 8 * 60 * 60 * 1000);
-    case 'tomorrow_9am': {
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(9, 0, 0, 0);
-      return tomorrow;
-    }
-  }
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (date.toDateString() === now.toDateString()) return `Today at ${time}`;
+  if (date.toDateString() === tomorrow.toDateString()) return `Tomorrow at ${time}`;
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${time}`;
 }
 
 // ─── Zod schema ───────────────────────────────────────────────────────────────
@@ -86,7 +76,6 @@ const schema = z.object({
     .max(300, 'Description must be 300 characters or fewer')
     .optional()
     .default(''),
-  expiry: z.enum(['2h', '4h', '8h', 'tomorrow_9am']),
   verified_only: z.boolean().default(false),
 });
 
@@ -96,11 +85,47 @@ type FormValues = z.infer<typeof schema>;
 
 export default function CreateEventScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, profile } = useAuthStore();
   const { coordinates, city } = useLocationStore();
   const { addEvent } = useMapStore();
 
   const isVerified = profile?.verification_status === 'verified';
+
+  // ── Expiry datetime state ─────────────────────────────────────────────────
+  // Default: 2 hours from now
+  const [expiresAt, setExpiresAt] = useState<Date>(
+    () => new Date(Date.now() + 2 * 60 * 60 * 1000),
+  );
+  // Android needs two-step: open 'date' dialog, then 'time' dialog
+  // iOS uses inline 'datetime' spinner; 'none' means picker is hidden
+  const [pickerMode, setPickerMode] = useState<'none' | 'date' | 'time' | 'datetime'>('none');
+
+  const handlePickerChange = (_event: unknown, selected?: Date) => {
+    if (!selected) {
+      // User dismissed (Android back button)
+      setPickerMode('none');
+      return;
+    }
+    if (Platform.OS === 'android') {
+      if (pickerMode === 'date') {
+        // Got the date part — carry over existing time, then show time dialog
+        const next = new Date(expiresAt);
+        next.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+        setExpiresAt(next);
+        setPickerMode('time');
+      } else {
+        // Got the time part — merge into the stored date
+        const next = new Date(expiresAt);
+        next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+        setExpiresAt(next);
+        setPickerMode('none');
+      }
+    } else {
+      // iOS: inline spinner — just update directly
+      setExpiresAt(selected);
+    }
+  };
 
   // ── Toast ────────────────────────────────────────────────────────────────
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -109,17 +134,9 @@ export default function CreateEventScreen() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     Animated.sequence([
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
+      Animated.timing(toastOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
       Animated.delay(2200),
-      Animated.timing(toastOpacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
+      Animated.timing(toastOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
     ]).start();
   };
 
@@ -134,9 +151,7 @@ export default function CreateEventScreen() {
     mode: 'onChange',
     defaultValues: {
       title: '',
-      // category has no default — user must explicitly select one
       description: '',
-      expiry: '2h',
       verified_only: false,
     },
   });
@@ -148,11 +163,20 @@ export default function CreateEventScreen() {
   // ── Submit ───────────────────────────────────────────────────────────────
   const onSubmit = async (values: FormValues) => {
     if (!user || !coordinates || isSubmitting) return;
+
+    // Guard: expiry must be at least 1 hour from now
+    const minExpiry = Date.now() + 60 * 60 * 1000;
+    if (expiresAt.getTime() < minExpiry) {
+      Alert.alert(
+        'Invalid End Time',
+        'Your event must end at least 1 hour from now. Please pick a later time.',
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const expiresAt = computeExpiresAt(values.expiry as ExpiryOption);
-
       const { data, error } = await supabase.functions.invoke('create-event', {
         body: {
           title: values.title,
@@ -168,9 +192,8 @@ export default function CreateEventScreen() {
 
       if (error) throw error;
 
-      // Free user event limit reached — server returns this code
+      // Free user event limit reached
       if (data?.code === 'LIMIT_REACHED') {
-        // TODO: Replace with paywall bottom sheet (Flow 7) in a future phase
         Alert.alert(
           'Event Limit Reached',
           'Free users can have 1 active event at a time.\n\nGet Verified for €4.99 to create unlimited events.',
@@ -181,7 +204,7 @@ export default function CreateEventScreen() {
 
       if (!data?.event?.id) throw new Error('create-event returned no event id');
 
-      // Optimistic UI — pin appears immediately on the map without waiting for Realtime
+      // Optimistic UI — pin appears immediately on the map
       const optimisticEvent: Event = {
         id: data.event.id,
         host_id: user.id,
@@ -202,12 +225,10 @@ export default function CreateEventScreen() {
       addEvent(optimisticEvent);
 
       showToast('Your event is live! 🎉');
-
-      // Short delay so the user sees the toast before the modal closes
       setTimeout(() => router.back(), 600);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[CreateEvent] - CreateEventScreen - submit failed:', message);
+      console.error('[CreateEvent] - submit failed:', message);
       Alert.alert('Error', 'Could not create event. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -215,6 +236,14 @@ export default function CreateEventScreen() {
   };
 
   const isPublishDisabled = !isValid || isSubmitting || !coordinates;
+
+  // Picker constraints: min 1 h from now, max 26 h from now
+  const pickerMin = new Date(Date.now() + 60 * 60 * 1000);
+  const pickerMax = new Date(Date.now() + 26 * 60 * 60 * 1000);
+
+  // The paddingTop for the header uses the safe-area top inset so it respects
+  // camera cutouts and notches on both Android and iOS.
+  const headerPaddingTop = insets.top + 12;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -225,13 +254,13 @@ export default function CreateEventScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
       >
         {/* ── Header ── */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: headerPaddingTop }]}>
           <Text style={styles.headerTitle}>New Event</Text>
           <Pressable
             onPress={() => router.back()}
             disabled={isSubmitting}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            style={styles.closeBtn}
+            style={[styles.closeBtn, { top: headerPaddingTop }]}
           >
             <X color="#94A3B8" size={22} strokeWidth={2} />
           </Pressable>
@@ -345,39 +374,52 @@ export default function CreateEventScreen() {
             )}
           </View>
 
-          {/* ── Expiry ── */}
+          {/* ── Expiry — datetime picker ── */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Expires in</Text>
-            <Controller
-              control={control}
-              name="expiry"
-              render={({ field: { onChange, value } }) => (
-                <View style={styles.expiryGrid}>
-                  {EXPIRY_OPTIONS.map((opt) => {
-                    const selected = value === opt.value;
-                    return (
-                      <Pressable
-                        key={opt.value}
-                        style={[
-                          styles.expiryOption,
-                          selected && styles.expiryOptionSelected,
-                        ]}
-                        onPress={() => onChange(opt.value)}
-                      >
-                        <Text
-                          style={[
-                            styles.expiryLabel,
-                            selected && styles.expiryLabelSelected,
-                          ]}
-                        >
-                          {opt.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-            />
+            <Text style={styles.label}>Event ends at</Text>
+
+            {/* Tap to open picker */}
+            <Pressable
+              style={styles.dateRow}
+              onPress={() =>
+                setPickerMode(Platform.OS === 'ios' ? 'datetime' : 'date')
+              }
+            >
+              <Text style={styles.dateRowIcon}>🕐</Text>
+              <Text style={styles.dateRowText}>{formatExpiry(expiresAt)}</Text>
+              <Text style={styles.dateRowChevron}>›</Text>
+            </Pressable>
+
+            {/* Android: dialog appears when pickerMode !== 'none'
+                iOS: inline spinner rendered below the button */}
+            {pickerMode !== 'none' && (
+              <>
+                <DateTimePicker
+                  value={expiresAt}
+                  mode={
+                    pickerMode === 'datetime'
+                      ? 'datetime'
+                      : pickerMode === 'date'
+                      ? 'date'
+                      : 'time'
+                  }
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  minimumDate={pickerMin}
+                  maximumDate={pickerMax}
+                  onChange={handlePickerChange}
+                  // iOS only — makes the spinner text readable on dark backgrounds
+                  {...(Platform.OS === 'ios' ? { textColor: '#F8FAFC' } : {})}
+                />
+                {Platform.OS === 'ios' && (
+                  <Pressable
+                    style={styles.datePickerDoneBtn}
+                    onPress={() => setPickerMode('none')}
+                  >
+                    <Text style={styles.datePickerDoneBtnText}>Confirm</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
           </View>
 
           {/* ── Verified-only toggle ── */}
@@ -462,12 +504,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Header
+  // Header — paddingTop is applied inline via useSafeAreaInsets
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: Platform.OS === 'ios' ? 16 : 24,
     paddingBottom: 16,
     paddingHorizontal: 24,
     borderBottomWidth: 1,
@@ -478,10 +519,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#F8FAFC',
   },
+  // top is applied inline
   closeBtn: {
     position: 'absolute',
     right: 20,
-    top: Platform.OS === 'ios' ? 16 : 24,
     padding: 4,
   },
 
@@ -561,7 +602,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: 1,
     borderColor: '#334155',
-    // ~3 per row on standard screens
     minWidth: '30%',
   },
   chipSelected: {
@@ -580,33 +620,42 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
   },
 
-  // Expiry options — 2x2 grid
-  expiryGrid: {
+  // Datetime picker row
+  dateRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  expiryOption: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#1E293B',
-    borderRadius: 10,
-    paddingVertical: 12,
     alignItems: 'center',
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderWidth: 1,
     borderColor: '#334155',
+    gap: 10,
   },
-  expiryOptionSelected: {
-    backgroundColor: '#1D3E6E',
-    borderColor: ELECTRIC_BLUE,
+  dateRowIcon: {
+    fontSize: 18,
   },
-  expiryLabel: {
-    fontSize: 14,
-    color: '#94A3B8',
+  dateRowText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#F8FAFC',
     fontWeight: '500',
   },
-  expiryLabelSelected: {
-    color: '#F8FAFC',
+  dateRowChevron: {
+    fontSize: 22,
+    color: '#475569',
+    lineHeight: 24,
+  },
+  datePickerDoneBtn: {
+    backgroundColor: ELECTRIC_BLUE,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  datePickerDoneBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '600',
   },
 

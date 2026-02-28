@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
@@ -88,36 +90,45 @@ export default function RootLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Navigation guard ─────────────────────────────────────────────────────
+// ── Navigation guard ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!isInitialized) return;
 
     const inAuthGroup = segments[0] === '(auth)';
-    const onSetupScreen = segments[1] === 'setup';
+    // FIX 1: The setup screen is at the root, so it's segments[0], not segments[1]
+    const onSetupScreen = segments[0] === 'setup'; 
+
+    // FIX 2: Prevent the "flash" by waiting for the profile to finish downloading
+    if (user && profile === null) return; 
 
     if (!user) {
       if (!inAuthGroup) router.replace('/(auth)/');
-    } else if (!profile) {
-      if (!onSetupScreen) router.replace('/(auth)/setup');
-    } else if (inAuthGroup) {
+    } else if (!profile?.display_name) {
+      // FIX 3: Route correctly to the root setup file
+      if (!onSetupScreen) router.replace('/setup'); 
+    } else if (inAuthGroup || onSetupScreen) {
       router.replace('/(tabs)/');
     }
   }, [user, profile, isInitialized, segments, router]);
-
-  // Blank dark screen while Supabase resolves the initial session
-  if (!isInitialized) {
-    return <View style={{ flex: 1, backgroundColor: '#0F172A' }} />;
-  }
-
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="event/[id]" />
-      <Stack.Screen name="user/[id]" />
-      <Stack.Screen name="settings/index" />
-      <Stack.Screen name="settings/verified" />
-    </Stack>
+return (
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        {!isInitialized ? (
+          // Blank dark screen while Supabase resolves the initial session
+          <View style={{ flex: 1, backgroundColor: '#0F172A' }} />
+        ) : (
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" />
+            {/* Remove the setupComplete boolean hack. Let the useEffect router handle the redirect. */}
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="event/[id]" />
+            <Stack.Screen name="user/[id]" />
+            <Stack.Screen name="settings/index" />
+            <Stack.Screen name="settings/verified" />
+          </Stack>
+        )}
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }

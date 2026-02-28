@@ -5,9 +5,12 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,11 +21,18 @@ import { supabase } from '../../lib/supabase';
 // Deep-link scheme configured in app.json → expo.scheme
 const REDIRECT_URL = 'nomadmeet://auth/callback';
 
+// ── Dev bypass — remove before shipping ───────────────────────────────────
+const DEV_EMAIL = 'testuser1@gmail.com';
+const DEV_PASSWORD = 'password123';
+
 export default function LoginScreen() {
   const [isSubmittingApple, setIsSubmittingApple] = useState(false);
   const [isSubmittingGoogle, setIsSubmittingGoogle] = useState(false);
+  const [isSubmittingDev, setIsSubmittingDev] = useState(false);
+  const [devEmail, setDevEmail] = useState(DEV_EMAIL);
+  const [devPassword, setDevPassword] = useState(DEV_PASSWORD);
 
-  const isLoading = isSubmittingApple || isSubmittingGoogle;
+  const isLoading = isSubmittingApple || isSubmittingGoogle || isSubmittingDev;
 
   // ── Apple Sign In ─────────────────────────────────────────────────────────
   const handleAppleSignIn = async () => {
@@ -54,6 +64,26 @@ export default function LoginScreen() {
       }
     } finally {
       setIsSubmittingApple(false);
+    }
+  };
+
+  // ── Dev Bypass (email/password) ───────────────────────────────────────────
+  const handleDevSignIn = async () => {
+    if (isLoading) return;
+    setIsSubmittingDev(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: devEmail.trim(),
+        password: devPassword,
+      });
+      if (error) throw error;
+      // Navigation handled by root layout auth guard
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[Auth] - Dev bypass failed:', message);
+      Alert.alert('Sign In Failed', message);
+    } finally {
+      setIsSubmittingDev(false);
     }
   };
 
@@ -90,7 +120,10 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <View style={styles.hero}>
         <Text style={styles.logo}>NomadMeet</Text>
@@ -98,7 +131,11 @@ export default function LoginScreen() {
       </View>
 
       {/* ── Sign-In Buttons ──────────────────────────────────────────────── */}
-      <View style={styles.buttonsContainer}>
+      <ScrollView
+        contentContainerStyle={styles.buttonsContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Apple Sign In — iOS only, required to use Apple's native button */}
         {Platform.OS === 'ios' && (
           <View
@@ -139,8 +176,48 @@ export default function LoginScreen() {
           {' '}and{' '}
           <Text style={styles.legalLink}>Privacy Policy</Text>.
         </Text>
-      </View>
-    </View>
+
+        {/* ── Dev Bypass ── remove before shipping ────────────────────────── */}
+        <View style={styles.devDivider}>
+          <View style={styles.devDividerLine} />
+          <Text style={styles.devDividerLabel}>DEV ONLY</Text>
+          <View style={styles.devDividerLine} />
+        </View>
+
+        <TextInput
+          style={styles.devInput}
+          value={devEmail}
+          onChangeText={setDevEmail}
+          placeholder="email"
+          placeholderTextColor="#475569"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          editable={!isLoading}
+        />
+        <TextInput
+          style={styles.devInput}
+          value={devPassword}
+          onChangeText={setDevPassword}
+          placeholder="password"
+          placeholderTextColor="#475569"
+          secureTextEntry
+          editable={!isLoading}
+        />
+
+        <TouchableOpacity
+          style={[styles.devButton, isLoading && styles.buttonDisabled]}
+          onPress={handleDevSignIn}
+          disabled={isLoading}
+          activeOpacity={0.8}
+        >
+          {isSubmittingDev ? (
+            <ActivityIndicator color="#94A3B8" size="small" />
+          ) : (
+            <Text style={styles.devButtonText}>Sign in (Dev)</Text>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -210,5 +287,47 @@ const styles = StyleSheet.create({
   },
   legalLink: {
     color: '#3B82F6',
+  },
+  // Dev bypass
+  devDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  devDividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#1E293B',
+  },
+  devDividerLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#334155',
+    letterSpacing: 1.2,
+  },
+  devInput: {
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#1E293B',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#334155',
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: '#CBD5E1',
+  },
+  devButton: {
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#1E293B',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  devButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
   },
 });

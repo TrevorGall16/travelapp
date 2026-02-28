@@ -25,6 +25,7 @@ import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../stores/authStore';
 import { useLocationStore } from '../../stores/locationStore';
 import { useMapStore } from '../../stores/mapStore';
 import EventCard from '../../components/map/EventCard';
@@ -147,6 +148,7 @@ function eventsToGeoFeatures(
 
 export default function MapScreen() {
   const router = useRouter();
+  const { profile } = useAuthStore();
   const { coordinates, city, setCoordinates, setPermissionStatus, setCity } =
     useLocationStore();
   const { events, setEvents, addEvent, updateEvent, removeEvent } =
@@ -302,6 +304,13 @@ export default function MapScreen() {
     let isMounted = true;
 
     const init = async () => {
+      // Guard: if setup isn't complete the root layout will redirect to setup.
+      // Never request permissions in that window — it would interrupt the user.
+      if (!profile?.display_name) {
+        setIsLoading(false);
+        return;
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (isMounted) setPermissionStatus(status);
 
@@ -685,10 +694,10 @@ const styles = StyleSheet.create({
     marginTop: -1,
   },
 
-  // Empty state
+  // Empty state — sits below the city bar, well above the FAB
   emptyBanner: {
     position: 'absolute',
-    bottom: 120,
+    top: 110,
     alignSelf: 'center',
     backgroundColor: 'rgba(15,23,42,0.9)',
     paddingHorizontal: 20,
