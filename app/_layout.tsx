@@ -46,13 +46,30 @@ export default function RootLayout() {
     };
 
     const fetchStreamToken = async () => {
+      console.log('[Stream] fetchStreamToken → invoking generate-stream-token...');
       try {
-        const { data } = await supabase.functions.invoke('generate-stream-token');
-        if (isMounted && typeof data?.token === 'string') {
-          setStreamToken(data.token);
+        const { data, error } = await supabase.functions.invoke('generate-stream-token');
+
+        // Log the full raw response so we can see exactly what came back.
+        console.log('[Stream] generate-stream-token raw response →',
+          'data:', JSON.stringify(data),
+          '| error:', JSON.stringify(error),
+        );
+
+        if (error) {
+          console.error('[Stream] Edge Function returned an error:', error.message ?? JSON.stringify(error));
+          return;
         }
+
+        if (typeof data?.token !== 'string' || data.token.length === 0) {
+          console.error('[Stream] Token missing or invalid in response. Full data:', JSON.stringify(data));
+          return;
+        }
+
+        console.log('[Stream] Token received OK, length:', data.token.length);
+        if (isMounted) setStreamToken(data.token);
       } catch (err) {
-        console.error('[Auth] - RootLayout - generate-stream-token failed:', err);
+        console.error('[Stream] fetchStreamToken threw unexpectedly:', err);
       }
     };
 

@@ -1,6 +1,6 @@
 import { Platform, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
-import { Map, CalendarCheck, User } from 'lucide-react-native';
+import { Map, CalendarCheck, MessageCircle, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ELECTRIC_BLUE = '#3B82F6';
@@ -39,6 +39,15 @@ export default function TabLayout() {
           title: 'My Events',
           tabBarIcon: ({ color, size }) => (
             <CalendarCheck color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="chats"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <MessageCircle color={color} size={size} />
           ),
         }}
       />

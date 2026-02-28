@@ -29,15 +29,15 @@ export type EventCategory =
 
 export type EventStatus = 'active' | 'expired';
 
-/** Raw row returned by the `get_events_within_radius` RPC.
- *  The PostGIS `location` column comes back as a hex EWKB string. */
+/** Raw row returned by the `get_nearby_events` RPC.
+ *  The PostGIS `location` column comes back as a GeoJSON Point object. */
 export interface DBEvent {
   id: string;
   host_id: string;
   title: string;
   description: string | null;
   category: EventCategory;
-  location: string; // hex EWKB — parse with parsePointFromWKB()
+  location: { type: 'Point'; coordinates: [number, number] }; // [lng, lat]
   status: EventStatus;
   verified_only: boolean;
   participant_count: number;

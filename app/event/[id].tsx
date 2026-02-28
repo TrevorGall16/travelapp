@@ -277,35 +277,40 @@ export default function EventChatScreen() {
 
   const channelRef = useRef<StreamChannel | null>(null);
 
+  // ── 5-second timeout: surface the error instead of spinning forever ────────
+  useEffect(() => {
+    if (!isConnecting) return;
+    const t = setTimeout(() => {
+      setIsConnecting(false);
+      setConnectError(
+        streamToken
+          ? 'Connection timed out. Check your Stream API key and network.'
+          : 'Stream token is missing. Check that generate-stream-token deployed correctly and STREAM_SECRET_KEY is set in Supabase secrets.',
+      );
+    }, 5_000);
+    return () => clearTimeout(t);
+  }, [isConnecting, streamToken]);
+
   // ── Setup: fetch metadata + connect Stream + watch channel ─────────────────
   useEffect(() => {
-    if (!eventId || !user || !profile || !streamToken) return;
+    // Hard-fail immediately if prerequisites are missing — do NOT spin silently.
+    if (!eventId || !user || !profile) return;
+    if (!streamToken) {
+      console.warn('[EventChat] streamToken is null — cannot connect. eventId:', eventId,
+        '| user:', user.id, '| profile.display_name:', profile.display_name);
+      setConnectError('Stream token is missing. Sign out and back in, or check that generate-stream-token is deployed.');
+      setIsConnecting(false);
+      return;
+    }
+
+    // If already connected to this channel (dep-array re-run), bail out.
+    if (streamChannel) return;
 
     let cancelled = false;
 
     const setup = async () => {
+      console.log('[EventChat] setup() start → eventId:', eventId, '| userID:', user.id);
       try {
-        // 0. Auto-join the event via Edge Function (idempotent).
-        //    join-event handles: DB insert, Stream addMembers, verified_only gate.
-        //    Calling it for an already-joined user is safe — returns already_member: true.
-        const { data: joinData, error: joinError } = await supabase.functions.invoke(
-          'join-event',
-          { body: { event_id: eventId } },
-        );
-
-        if (joinError) {
-          if (!cancelled) setConnectError('Could not join this event. Please go back and try again.');
-          return;
-        }
-
-        // Application-level error codes returned with HTTP 200
-        const joinCode = (joinData as { code?: string } | null)?.code;
-        if (joinCode === 'VERIFIED_ONLY') {
-          if (!cancelled) setConnectError('This event is open to verified travelers only. Get verified to join.');
-          return;
-        }
-        // EVENT_EXPIRED is non-blocking — existing members can still read history.
-
         // 1. Fetch event metadata from Supabase
         const { data: eventData, error: eventError } = await supabase
           .from('events')
@@ -377,8 +382,9 @@ export default function EventChatScreen() {
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error('[EventChat] setup error:', msg);
-          setConnectError('Could not connect to chat. Please go back and try again.');
+          console.error('[EventChat] setup() threw:', msg);
+          // Show the raw error on screen so it is visible without a Mac/PC attached.
+          setConnectError(`Chat error: ${msg}`);
         }
       } finally {
         if (!cancelled) setIsConnecting(false);
@@ -389,13 +395,13 @@ export default function EventChatScreen() {
 
     return () => {
       cancelled = true;
-      // Stop watching on unmount to release the WebSocket slot for this channel
       channelRef.current?.stopWatching().catch(() => {});
       channelRef.current = null;
     };
-    // eventId, user.id, and streamToken are the stable identifiers for this session
+    // streamToken in deps so the effect retries if the token arrives after mount.
+    // streamChannel guards against re-running once successfully connected.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId]);
+  }, [eventId, streamToken]);
 
   // ── Listen for meetup_point updates (channel.updated event) ────────────────
   useEffect(() => {
@@ -467,6 +473,7 @@ export default function EventChatScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centeredFill}>
+          <Text style={styles.errorLabel}>⚠️ Connection Failed</Text>
           <Text style={styles.errorText}>
             {connectError ?? 'Could not load chat.'}
           </Text>
@@ -574,11 +581,18 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontSize: 15,
   },
+  errorLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#EF4444',
+    textAlign: 'center',
+  },
   errorText: {
     color: '#94A3B8',
-    fontSize: 16,
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
+    fontFamily: 'monospace', // makes error strings easier to read
   },
   goBackBtn: {
     backgroundColor: ELECTRIC_BLUE,

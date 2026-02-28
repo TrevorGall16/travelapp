@@ -28,6 +28,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { useLocationStore } from '../../stores/locationStore';
 import { useMapStore } from '../../stores/mapStore';
+import EventCard from '../../components/map/EventCard';
 import type { DBEvent, Event, EventCategory } from '../../types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -50,34 +51,6 @@ const CATEGORY_EMOJI: Record<EventCategory, string> = {
 };
 
 // ─── Geo utilities ────────────────────────────────────────────────────────────
-
-/**
- * Parses a PostGIS EWKB hex string (WKB or EWKB with optional SRID) into
- * {latitude, longitude}. Returns null if the input is invalid or unparseable.
- */
-function parsePointFromWKB(
-  wkb: string,
-): { latitude: number; longitude: number } | null {
-  if (!wkb || wkb.length < 42) return null;
-  try {
-    const bytes = new Uint8Array(wkb.length / 2);
-    for (let i = 0; i < wkb.length; i += 2) {
-      bytes[i / 2] = parseInt(wkb.slice(i, i + 2), 16);
-    }
-    const view = new DataView(bytes.buffer);
-    const isLE = bytes[0] === 1;
-    const geomType = view.getUint32(1, isLE);
-    // 0x20000000 = SRID flag present in PostGIS EWKB
-    const hasSRID = (geomType & 0x20000000) !== 0;
-    const offset = 5 + (hasSRID ? 4 : 0);
-    const longitude = view.getFloat64(offset, isLE);
-    const latitude = view.getFloat64(offset + 8, isLE);
-    if (!isFinite(longitude) || !isFinite(latitude)) return null;
-    return { latitude, longitude };
-  } catch {
-    return null;
-  }
-}
 
 /** Haversine distance between two lat/lon points, in metres. */
 function haversineMeters(
@@ -104,11 +77,11 @@ function regionToZoom(longitudeDelta: number): number {
 
 /** Maps a raw DBEvent row to a parsed Event. Returns null if coords are invalid. */
 function dbEventToEvent(row: DBEvent): Event | null {
-  const coords = parsePointFromWKB(row.location);
-  if (!coords) return null;
+  const [longitude, latitude] = row.location.coordinates;
+  if (!isFinite(latitude) || !isFinite(longitude)) return null;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { location: _loc, ...rest } = row;
-  return { ...rest, ...coords };
+  return { ...rest, latitude, longitude };
 }
 
 // ─── Supercluster types ────────────────────────────────────────────────────────
@@ -158,6 +131,7 @@ export default function MapScreen() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [clusters, setClusters] = useState<ClusterOutput[]>([]);
   const [region, setRegion] = useState<Region | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   const mapRef = useRef<MapView>(null);
   const lastFetchRef = useRef<{ latitude: number; longitude: number } | null>(
@@ -175,18 +149,31 @@ export default function MapScreen() {
 
   const fetchEvents = useCallback(
     async (lat: number, lon: number) => {
+      console.log('[Map Fetch] Payload:', { lat, lng: lon, radius_km: FETCH_RADIUS_KM });
+
       const { data, error } = await supabase.rpc('get_nearby_events', {
         lat,
         lng: lon,
         radius_km: FETCH_RADIUS_KM,
       });
+
+      console.log('[Map Fetch] Result: rows =', Array.isArray(data) ? data.length : data,
+        '| error =', error?.message ?? null,
+        '| first row =', Array.isArray(data) && data.length > 0 ? JSON.stringify(data[0]) : 'none',
+      );
+
       if (error) {
-        console.error('[Map] get_events_within_radius:', error.message);
+        console.error('[Map] get_nearby_events error:', error.message, error.details);
         return;
       }
       const parsed: Event[] = ((data ?? []) as DBEvent[])
         .map(dbEventToEvent)
         .filter((e): e is Event => e !== null);
+
+      console.log('[Map Fetch] Parsed events:', parsed.length,
+        '| skipped (bad coords):', (data?.length ?? 0) - parsed.length,
+      );
+
       setEvents(parsed);
       lastFetchRef.current = { latitude: lat, longitude: lon };
     },
@@ -453,9 +440,10 @@ export default function MapScreen() {
 
   const handlePinPress = useCallback(
     (eventId: string) => {
-      router.push(`/event/${eventId}`);
+      const found = events.find((e) => e.id === eventId) ?? null;
+      setSelectedEvent(found);
     },
-    [router],
+    [events],
   );
 
   // ── Marker rendering ──────────────────────────────────────────────────────
@@ -590,6 +578,12 @@ export default function MapScreen() {
           </Text>
         </View>
       )}
+
+      {/* Event preview sheet — always mounted, animates in/out on pin tap */}
+      <EventCard
+        event={selectedEvent}
+        onDismiss={() => setSelectedEvent(null)}
+      />
 
       {/* FAB — create event */}
       <Pressable

@@ -1,0 +1,62 @@
+
+export default {
+  expo: {
+    name: "Travel App",
+    slug: "travel-app",
+    version: "1.0.0",
+    orientation: "portrait",
+    icon: "./assets/icon.png",
+    scheme: "travelapp",
+    userInterfaceStyle: "light",
+    splash: {
+      image: "./assets/splash-icon.png",
+      resizeMode: "contain",
+      backgroundColor: "#ffffff"
+    },
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.yourname.travelapp",
+      config: {
+        usesNonExemptEncryption: false
+      },
+      infoPlist: {
+        NSLocationWhenInUseUsageDescription: "This app needs access to your location to show nearby travel events on the map.",
+        NSLocationAlwaysAndWhenInUseUsageDescription: "This app needs access to your location to notify you of nearby travel meetups even when the app is in the background."
+      }
+    },
+    android: {
+      package: "com.yourname.travelapp",
+      adaptiveIcon: {
+        backgroundColor: "#E6F4FE",
+        foregroundImage: "./assets/android-icon-foreground.png",
+        backgroundImage: "./assets/android-icon-background.png",
+        monochromeImage: "./assets/android-icon-monochrome.png"
+      },
+      config: {
+        googleMaps: {
+          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+        }
+      },
+      permissions: [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE"
+      ],
+      predictiveBackGestureEnabled: false
+    },
+    web: {
+      favicon: "./assets/favicon.png"
+    },
+    plugins: [
+      "expo-router",
+      "expo-web-browser",
+      "expo-image",
+      [
+        "expo-location",
+        {
+          locationAlwaysAndWhenInUsePermission: "Allow Travel App to use your location."
+        }
+      ]
+    ]
+  }
+};
