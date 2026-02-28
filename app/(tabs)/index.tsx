@@ -29,6 +29,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useLocationStore } from '../../stores/locationStore';
 import { useMapStore } from '../../stores/mapStore';
 import EventCard from '../../components/map/EventCard';
+import { Colors } from '../../constants/theme';
 import type { DBEvent, Event, EventCategory } from '../../types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -39,7 +40,6 @@ const FETCH_RADIUS_METERS = FETCH_RADIUS_KM * 1_000; // kept for haversine guard
 const REFETCH_THRESHOLD_METERS = 500;
 const LOCATION_INTERVAL_MS = 30_000;
 const LOCATION_DISTANCE_M = 100;
-const ELECTRIC_BLUE = '#3B82F6';
 
 const CATEGORY_EMOJI: Record<EventCategory, string> = {
   beer: '🍺',
@@ -509,7 +509,7 @@ export default function MapScreen() {
   if (isLoading) {
     return (
       <View style={styles.centeredFill}>
-        <ActivityIndicator size="large" color={ELECTRIC_BLUE} />
+        <ActivityIndicator size="large" color={Colors.accent} />
       </View>
     );
   }
@@ -585,16 +585,22 @@ export default function MapScreen() {
         onDismiss={() => setSelectedEvent(null)}
       />
 
-      {/* FAB — create event */}
-      <Pressable
-        style={styles.fab}
-        onPress={() => router.push('/event/create')}
-        accessibilityLabel="Create event"
-        accessibilityRole="button"
-      >
-        <Plus color="#FFFFFF" size={28} strokeWidth={2.5} />
-      </Pressable>
-
+      {/*
+       * FAB — hidden while the EventCard sheet is open so it doesn't bleed
+       * on top of the sheet content. Becomes visible again on dismiss.
+       * Z-index discipline: sheet sits at a higher elevation than the FAB,
+       * but hiding is cleaner than fighting elevation stacking on Android.
+       */}
+      {!selectedEvent && (
+        <Pressable
+          style={styles.fab}
+          onPress={() => router.push('/event/create')}
+          accessibilityLabel="Create event"
+          accessibilityRole="button"
+        >
+          <Plus color={Colors.white} size={28} strokeWidth={2.5} />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -602,7 +608,7 @@ export default function MapScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#0F172A' },
+  fill: { flex: 1, backgroundColor: Colors.background },
   centeredFill: { justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 },
   map: { flex: 1 },
 
@@ -611,36 +617,36 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 56,
     alignSelf: 'center',
-    backgroundColor: 'rgba(15,23,42,0.85)',
+    backgroundColor: Colors.overlayMedium,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     zIndex: 10,
   },
   cityName: {
-    color: '#F1F5F9',
+    color: Colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
   },
 
   // Cluster bubble
   clusterMarker: {
-    backgroundColor: ELECTRIC_BLUE,
+    backgroundColor: Colors.accent,
     borderRadius: 24,
     width: 44,
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
+    borderColor: Colors.white,
+    shadowColor: Colors.background,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.35,
     shadowRadius: 4,
     elevation: 5,
   },
   clusterCount: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontSize: 14,
     fontWeight: '800',
   },
@@ -652,17 +658,17 @@ const styles = StyleSheet.create({
   pinVerifiedRing: {
     borderRadius: 28,
     borderWidth: 2.5,
-    borderColor: ELECTRIC_BLUE,
+    borderColor: Colors.accent,
     padding: 2,
   },
   pinBody: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#1E293B',
+    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.background,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.35,
     shadowRadius: 4,
@@ -675,9 +681,9 @@ const styles = StyleSheet.create({
     borderLeftWidth: 6,
     borderRightWidth: 6,
     borderTopWidth: 10,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: '#1E293B',
+    borderLeftColor: Colors.transparent,
+    borderRightColor: Colors.transparent,
+    borderTopColor: Colors.surface,
     marginTop: -1,
   },
 
@@ -686,20 +692,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 110,
     alignSelf: 'center',
-    backgroundColor: 'rgba(15,23,42,0.9)',
+    backgroundColor: Colors.overlayStrong,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
   },
   emptyText: {
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
   },
 
-  // FAB
+  // FAB — z-index: rendered conditionally (hidden when EventCard sheet is open)
   fab: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 116 : 96,
@@ -707,10 +713,10 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: ELECTRIC_BLUE,
+    backgroundColor: Colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: ELECTRIC_BLUE,
+    shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 8,
@@ -719,19 +725,19 @@ const styles = StyleSheet.create({
 
   // Permission denied
   permissionText: {
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 26,
   },
   permissionBtn: {
-    backgroundColor: ELECTRIC_BLUE,
+    backgroundColor: Colors.accent,
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 12,
   },
   permissionBtnText: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontSize: 16,
     fontWeight: '700',
   },

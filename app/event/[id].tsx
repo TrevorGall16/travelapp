@@ -29,10 +29,7 @@ import { supabase } from '../../lib/supabase';
 import { streamClient } from '../../lib/streamClient';
 import { useAuthStore } from '../../stores/authStore';
 import { useLocationStore } from '../../stores/locationStore';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const ELECTRIC_BLUE = '#3B82F6';
+import { Colors } from '../../constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,33 +128,32 @@ const bannerStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#334155',
+    borderBottomColor: Colors.border,
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 10,
-    // Never scrolls — it is rendered above MessageList, outside the scroll area
   },
   pin: { fontSize: 18 },
   info: { flex: 1 },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
   },
   distance: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     marginTop: 1,
   },
   noPoint: {
     fontSize: 14,
-    color: '#64748B',
+    color: Colors.textTertiary,
     fontStyle: 'italic',
   },
   mapsBtn: {
-    backgroundColor: ELECTRIC_BLUE,
+    backgroundColor: Colors.accent,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -165,7 +161,7 @@ const bannerStyles = StyleSheet.create({
   mapsBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
 });
 
@@ -216,7 +212,7 @@ function ParticipantStrip({
 const stripStyles = StyleSheet.create({
   container: {
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: Colors.surface,
   },
   scroll: {
     paddingHorizontal: 16,
@@ -233,25 +229,25 @@ const stripStyles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#334155',
+    backgroundColor: Colors.border,
   },
   name: {
     fontSize: 10,
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
   moreCircle: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#334155',
+    backgroundColor: Colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   moreText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: Colors.textSecondary,
   },
 });
 
@@ -275,6 +271,9 @@ export default function EventChatScreen() {
   const [meetupPoint, setMeetupPoint] = useState<MeetupPoint | null>(null);
   const [participants, setParticipants] = useState<ParticipantSnippet[]>([]);
 
+  // isDeleting: locks the UI during the delete-event Edge Function call
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const channelRef = useRef<StreamChannel | null>(null);
 
   // ── 5-second timeout: surface the error instead of spinning forever ────────
@@ -293,7 +292,6 @@ export default function EventChatScreen() {
 
   // ── Setup: fetch metadata + connect Stream + watch channel ─────────────────
   useEffect(() => {
-    // Hard-fail immediately if prerequisites are missing — do NOT spin silently.
     if (!eventId || !user || !profile) return;
     if (!streamToken) {
       console.warn('[EventChat] streamToken is null — cannot connect. eventId:', eventId,
@@ -303,7 +301,6 @@ export default function EventChatScreen() {
       return;
     }
 
-    // If already connected to this channel (dep-array re-run), bail out.
     if (streamChannel) return;
 
     let cancelled = false;
@@ -311,7 +308,7 @@ export default function EventChatScreen() {
     const setup = async () => {
       console.log('[EventChat] setup() start → eventId:', eventId, '| userID:', user.id);
       try {
-        // 1. Fetch event metadata from Supabase
+        // 1. Fetch event metadata
         const { data: eventData, error: eventError } = await supabase
           .from('events')
           .select('title, participant_count, status')
@@ -383,7 +380,6 @@ export default function EventChatScreen() {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error('[EventChat] setup() threw:', msg);
-          // Show the raw error on screen so it is visible without a Mac/PC attached.
           setConnectError(`Chat error: ${msg}`);
         }
       } finally {
@@ -398,12 +394,10 @@ export default function EventChatScreen() {
       channelRef.current?.stopWatching().catch(() => {});
       channelRef.current = null;
     };
-    // streamToken in deps so the effect retries if the token arrives after mount.
-    // streamChannel guards against re-running once successfully connected.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, streamToken]);
 
-  // ── Listen for meetup_point updates (channel.updated event) ────────────────
+  // ── Listen for meetup_point updates ────────────────────────────────────────
   useEffect(() => {
     if (!streamChannel) return;
 
@@ -419,6 +413,41 @@ export default function EventChatScreen() {
 
     return () => unsubscribe();
   }, [streamChannel]);
+
+  // ── Delete event (host only) ────────────────────────────────────────────────
+  // Architecture: all event deletions go through the delete-event Edge Function,
+  // which syncs Stream.io before removing the DB row. Client never writes DELETE.
+  const handleDeleteEvent = useCallback(() => {
+    Alert.alert(
+      'Delete Event',
+      'This will permanently delete the event and remove all members from the chat. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const { error } = await supabase.functions.invoke('delete-event', {
+                body: { event_id: eventId },
+              });
+              if (error) {
+                throw new Error(error.message ?? 'Delete failed.');
+              }
+              // Success: navigate back to the map
+              router.back();
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Could not delete the event.';
+              console.error('[EventChat] delete-event error:', msg);
+              Alert.alert('Error', msg);
+              setIsDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [eventId, router]);
 
   // ── "..." menu ─────────────────────────────────────────────────────────────
   const handleMenu = useCallback(() => {
@@ -437,6 +466,11 @@ export default function EventChatScreen() {
                 'Setting a meetup point from the app will be available in a future update.',
               ),
           },
+          {
+            text: 'Delete Event',
+            style: 'destructive' as const,
+            onPress: handleDeleteEvent,
+          },
         ]
       : [
           {
@@ -454,14 +488,14 @@ export default function EventChatScreen() {
       ...actions,
       { text: 'Cancel', style: 'cancel' },
     ]);
-  }, [streamChannel, user?.id]);
+  }, [streamChannel, user?.id, handleDeleteEvent]);
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (isConnecting) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centeredFill}>
-          <ActivityIndicator size="large" color={ELECTRIC_BLUE} />
+          <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Connecting to chat…</Text>
         </View>
       </SafeAreaView>
@@ -486,9 +520,23 @@ export default function EventChatScreen() {
   }
 
   // ── Main render ────────────────────────────────────────────────────────────
+  //
+  // Layout contract:
+  //   SafeAreaView edges={['top','bottom']}
+  //     → adds paddingTop (status bar) + paddingBottom (gesture nav bar)
+  //     → no useSafeAreaInsets hook, no dynamic style objects needed
+  //
+  //   chatWrapper (flex: 1)
+  //     → gives OverlayProvider / Chat / Channel a defined height to fill
+  //     → without this the Stream components collapse to 0 height and
+  //       MessageInput disappears off the bottom of the screen
+  //
+  //   chatContainer (flex: 1) inside Channel
+  //     → column: ParticipantStrip (natural) | messagesFill (flex:1) | MessageInput (natural)
+  //
   return (
-    // edges={['top']} — bottom inset handled by Stream's MessageInput internally
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+
       {/* ── Header ── */}
       <View style={styles.header}>
         <Pressable
@@ -507,6 +555,7 @@ export default function EventChatScreen() {
           <Text style={styles.participantBadge}>👥 {participantCount}</Text>
           <Pressable
             onPress={handleMenu}
+            disabled={isDeleting}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Text style={styles.menuDots}>•••</Text>
@@ -527,38 +576,56 @@ export default function EventChatScreen() {
       <MeetupBanner meetupPoint={meetupPoint} userCoords={coordinates} />
 
       {/*
-       * OverlayProvider should ideally live in the root layout for cross-screen
-       * image gallery support. Placing it here is acceptable for Phase 3.
+       * chatWrapper gives the Stream component tree a bounded flex region.
+       * OverlayProvider, Chat, and Channel are context/keyboard providers —
+       * they do not self-size. Without this wrapper they collapse to 0 height,
+       * which is why MessageInput was invisible.
+       *
        * TODO Phase 4: move OverlayProvider to app/_layout.tsx.
        */}
-      <OverlayProvider>
-        <Chat client={streamClient}>
-          <Channel channel={streamChannel}>
-            <View style={styles.chatContainer}>
-              {/* ── Participant avatar strip ── */}
-              <ParticipantStrip
-                participants={participants}
-                totalCount={participantCount}
-              />
+      <View style={styles.chatWrapper}>
+        <OverlayProvider>
+          <Chat client={streamClient}>
+            <Channel channel={streamChannel}>
+              <View style={styles.chatContainer}>
 
-              {/* ── Message feed ── */}
-              <View style={styles.messagesFill}>
-                <MessageList />
+                {/* ── Participant avatar strip — fixed height row ── */}
+                <ParticipantStrip
+                  participants={participants}
+                  totalCount={participantCount}
+                />
+
+                {/* ── Message feed — fills remaining vertical space ── */}
+                <View style={styles.messagesFill}>
+                  <MessageList />
+                </View>
+
+                {/*
+                 * MessageInput sits naturally at the bottom of the column.
+                 * The SafeAreaView's bottom edge already accounts for the
+                 * gesture nav bar — no extra wrapper or paddingBottom needed.
+                 *
+                 * Stream's internal KeyboardCompatibleView (inside Channel)
+                 * handles the software keyboard independently.
+                 *
+                 * TODO Phase 4: replace with custom InputBox (photo/camera/poll).
+                 */}
+                <MessageInput />
+
               </View>
+            </Channel>
+          </Chat>
+        </OverlayProvider>
+      </View>
 
-              {/*
-               * Stream auto-disables MessageInput when the channel is frozen
-               * (i.e. after the event expires via process-expiring-events).
-               * No manual disabled state required.
-               *
-               * TODO Phase 4: replace with a custom InputBox that adds Photo,
-               * Camera, and Poll attachment options per Flow 5.
-               */}
-              <MessageInput />
-            </View>
-          </Channel>
-        </Chat>
-      </OverlayProvider>
+      {/* ── Deleting overlay — blocks UI while delete-event Edge Function runs ── */}
+      {isDeleting && (
+        <View style={styles.deletingOverlay}>
+          <ActivityIndicator size="large" color={Colors.white} />
+          <Text style={styles.deletingText}>Deleting event…</Text>
+        </View>
+      )}
+
     </SafeAreaView>
   );
 }
@@ -568,7 +635,7 @@ export default function EventChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: Colors.background,
   },
   centeredFill: {
     flex: 1,
@@ -578,42 +645,41 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   loadingText: {
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     fontSize: 15,
   },
   errorLabel: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#EF4444',
+    color: Colors.error,
     textAlign: 'center',
   },
   errorText: {
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 22,
-    fontFamily: 'monospace', // makes error strings easier to read
   },
   goBackBtn: {
-    backgroundColor: ELECTRIC_BLUE,
+    backgroundColor: Colors.accent,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 10,
   },
   goBackBtnText: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontSize: 15,
     fontWeight: '600',
   },
 
-  // Header
+  // ── Header ────────────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: Colors.surface,
     gap: 10,
   },
   backButton: {
@@ -621,14 +687,14 @@ const styles = StyleSheet.create({
   },
   backArrow: {
     fontSize: 22,
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
     fontWeight: '600',
   },
   headerTitle: {
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
   },
   headerRight: {
     flexDirection: 'row',
@@ -637,35 +703,63 @@ const styles = StyleSheet.create({
   },
   participantBadge: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     fontWeight: '500',
   },
   menuDots: {
     fontSize: 16,
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     letterSpacing: 2,
   },
 
-  // Expired
+  // ── Expired banner ────────────────────────────────────────────────────────
   expiredBanner: {
-    backgroundColor: '#1C0A0A',
+    backgroundColor: Colors.errorBackground,
     borderBottomWidth: 1,
-    borderBottomColor: '#7F1D1D',
+    borderBottomColor: Colors.errorBorder,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   expiredText: {
-    color: '#FCA5A5',
+    color: Colors.errorLight,
     fontSize: 13,
     textAlign: 'center',
   },
 
-  // Stream chat area
+  // ── Stream chat layout ────────────────────────────────────────────────────
+  //
+  // chatWrapper: the critical flex container.
+  //   OverlayProvider / Chat / Channel are React context + keyboard providers.
+  //   They don't apply any flex sizing to themselves; they adopt the height of
+  //   whatever parent contains them. This View gives them a defined, flex-1
+  //   height so the inner column (ParticipantStrip + messages + input) can
+  //   lay out correctly and MessageInput is never clipped.
+  chatWrapper: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   chatContainer: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: Colors.background,
   },
+  // messagesFill: gives MessageList the remaining vertical space so
+  // MessageInput is pushed to the bottom of the column, not the screen.
   messagesFill: {
     flex: 1,
+  },
+
+  // ── Deleting overlay ──────────────────────────────────────────────────────
+  deletingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.modalBackdrop,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    zIndex: 100,
+  },
+  deletingText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -39,9 +39,11 @@ These guidelines are meant to ensure a secure, maintainable app. However, **comp
 ---
 
 ## 5. UI & STYLING APPROACH
-* Check existing files for style patterns before creating new ones. 
-* Rely on the system default Light/Dark mode. 
-* Do not over-engineer the UI with complex animations for V1. Focus on snappy, immediate state updates (Optimistic UI) over heavy visual flair.
+* **Zero Inline Styles:** Never use inline styles (e.g., `<View style={{ color: 'red' }}>`).
+* **Global Theme Only:** We will use a global `theme.ts` file (containing colors, typography, spacing). You are forbidden from hardcoding hex codes (like `#0F172A`) or spacing values directly inside component files. Always import them from the theme.
+* **Separation of Concerns (Container/Presenter):** Keep complex database logic, API calls, and state management separate from the visual UI components. If a file is getting too long, split the visual layout into a separate component file.
+* **Z-Index Discipline:** Always manage `z-index` carefully, especially with absolute positioned elements (like floating Action Buttons), so they do not bleed through modals or new screens.
+* Check existing files for style patterns before creating new ones. Rely on the system default Light/Dark mode. Do not over-engineer the UI with complex animations for V1. Focus on snappy, immediate state updates (Optimistic UI) over heavy visual flair.
 
 ## 6. DEFENSIVE PROGRAMMING (THE "NO HAPPY PATHS" RULE)
 The Builder AI must assume the internet is unreliable, APIs will return empty or malformed data, and users will rapidly tap buttons.
