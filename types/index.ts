@@ -2,9 +2,9 @@ export type VerificationStatus = 'none' | 'pending' | 'rejected' | 'verified';
 
 export interface Profile {
   id: string;
-  display_name: string;
-  country_code: string;
-  avatar_url: string;
+  display_name: string | null;
+  country_code: string | null;
+  avatar_url: string | null;
   bio: string | null;
   instagram_handle: string | null;
   verification_status: VerificationStatus;

@@ -67,15 +67,19 @@ export default function RootLayout() {
           if (!isMounted) return;
           setProfile(profileData);
 
-          // Fetch Stream token on login or app launch (not on every token refresh)
-          if (profileData && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+          // Only fetch Stream token for users who have completed setup.
+          // New users (display_name null) don't need it yet.
+          const setupDone = !!profileData?.display_name?.trim();
+          if (setupDone && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
             await fetchStreamToken();
           }
         } else {
           clearAuth();
         }
 
-        // Mark the app as ready after the very first auth event
+        // Mark the app as ready after the very first auth event resolves.
+        // setInitialized fires AFTER setProfile, so the navigation guard
+        // always sees a consistent (user + profile) pair on its first run.
         if (!initialEventFired) {
           initialEventFired = true;
           if (isMounted) setInitialized(true);
@@ -90,42 +94,52 @@ export default function RootLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-// ── Navigation guard ─────────────────────────────────────────────────────
+  // ── Navigation guard ─────────────────────────────────────────────────────
   useEffect(() => {
+    // isInitialized only becomes true AFTER the first onAuthStateChange fires
+    // and setProfile has been called — so user + profile are always in sync here.
     if (!isInitialized) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
-    // FIX 1: The setup screen is at the root, so it's segments[0], not segments[1]
-    const onSetupScreen = segments[0] === 'setup'; 
-
-    // FIX 2: Prevent the "flash" by waiting for the profile to finish downloading
-    if (user && profile === null) return; 
+    // /(auth)/setup  →  segments = ['(auth)', 'setup']
+    // /(auth)/       →  segments = ['(auth)', 'index'] or ['(auth)']
+    // /(tabs)/       →  segments = ['(tabs)', 'index'] or ['(tabs)']
+    const inAuthGroup  = segments[0] === '(auth)';
+    const onSetupScreen = inAuthGroup && segments[1] === 'setup';
 
     if (!user) {
+      // Logged out — ensure we're in the auth group
       if (!inAuthGroup) router.replace('/(auth)/');
-    } else if (!profile?.display_name) {
-      // FIX 3: Route correctly to the root setup file
-      if (!onSetupScreen) router.replace('/setup'); 
-    } else if (inAuthGroup || onSetupScreen) {
-      router.replace('/(tabs)/');
+
+    } else if (!profile?.display_name?.trim()) {
+      // Logged in but setup not complete (display_name is null/empty).
+      // Only redirect if we're not already on setup to prevent loops.
+      if (!onSetupScreen) router.replace('/(auth)/setup');
+
+    } else {
+      // Logged in + setup complete.
+      // If still inside the auth group (login screen, setup, splash), push to tabs.
+      if (inAuthGroup) router.replace('/(tabs)/');
     }
   }, [user, profile, isInitialized, segments, router]);
+
+  // setupComplete gates whether (tabs) screens are included in the navigator.
+  // When false, (tabs) literally cannot mount — preventing the map screen from
+  // firing the location permission dialog before setup is done.
+  const setupComplete = !!user && !!profile?.display_name?.trim();
+
 return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         {!isInitialized ? (
-          // Blank dark screen while Supabase resolves the initial session
           <View style={{ flex: 1, backgroundColor: '#0F172A' }} />
         ) : (
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
-            {/* Remove the setupComplete boolean hack. Let the useEffect router handle the redirect. */}
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="setup" />
             <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
             <Stack.Screen name="event/[id]" />
             <Stack.Screen name="user/[id]" />
-            <Stack.Screen name="settings/index" />
-            <Stack.Screen name="settings/verified" />
           </Stack>
         )}
       </GestureHandlerRootView>
