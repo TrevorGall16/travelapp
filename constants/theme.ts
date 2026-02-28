@@ -37,8 +37,12 @@ export const Colors = {
 
   // ── Base ─────────────────────────────────────────────────────────────────
   white: '#FFFFFF',
+  /** CSS transparent — used for border-only shapes (e.g. pin tail triangle) */
+  transparent: 'transparent',
 
   // ── Overlays (semi-transparent surfaces) ─────────────────────────────────
+  /** Accent at low opacity — user location dot halo */
+  accentSubtle: 'rgba(59,130,246,0.2)',
   /** Topbar pill / city banner background */
   overlayStrong: 'rgba(15,23,42,0.9)',
   /** Map city label background */

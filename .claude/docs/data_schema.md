@@ -40,10 +40,33 @@ CREATE TABLE profiles (
   verification_status verification_status DEFAULT 'none'::verification_status,
   push_token TEXT,
   events_hosted_count INTEGER DEFAULT 0,
+  setup_completed BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ```
+
+> **`setup_completed` — Onboarding Guard (Critical)**
+>
+> `display_name`, `country_code`, and `avatar_url` are all `NOT NULL`, so the
+> `handle_new_user()` trigger must inject placeholder values (e.g. pulling
+> `display_name` from Google OAuth metadata) to satisfy Postgres on signup.
+> This makes string-based "is the profile real?" checks unreliable.
+>
+> `setup_completed BOOLEAN DEFAULT FALSE` is the **sole authoritative signal**
+> that a user has finished onboarding. It defaults to `FALSE` on every
+> trigger-created row and is only set to `TRUE` by `app/(auth)/setup.tsx` on
+> the final `.update()` call when the user completes Step 2.
+>
+> The navigation guard in `app/_layout.tsx` (`isProfileComplete()`) checks
+> **only this boolean** — never the string fields — when deciding whether to
+> allow access to `/(tabs)/`.
+>
+> **Migration (already applied):**
+> ```sql
+> ALTER TABLE profiles
+>   ADD COLUMN IF NOT EXISTS setup_completed BOOLEAN NOT NULL DEFAULT FALSE;
+> ```
 
 ### 2.2 Events Table
 

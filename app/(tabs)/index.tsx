@@ -292,7 +292,7 @@ export default function MapScreen() {
     const init = async () => {
       // Guard: if setup isn't complete the root layout will redirect to setup.
       // Never request permissions in that window — it would interrupt the user.
-      if (!profile?.display_name) {
+      if (!profile?.setup_completed) {
         setIsLoading(false);
         return;
       }
@@ -555,8 +555,7 @@ export default function MapScreen() {
         ref={mapRef}
         style={styles.map}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
-        showsUserLocation
-        showsMyLocationButton={false}
+        showsUserLocation={false}
         initialRegion={
           region ?? {
             latitude: coordinates?.latitude ?? 0,
@@ -568,6 +567,20 @@ export default function MapScreen() {
         onRegionChangeComplete={handleRegionChangeComplete}
       >
         {renderedMarkers}
+
+        {/* Custom user location dot — replaces showsUserLocation which crashes
+            on RN 0.76 Fabric with "topUserLocationChange" event errors. */}
+        {coordinates && (
+          <Marker
+            coordinate={coordinates}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+          >
+            <View style={styles.userDotOuter}>
+              <View style={styles.userDotInner} />
+            </View>
+          </Marker>
+        )}
       </MapView>
 
       {/* Empty state */}
@@ -740,5 +753,23 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  // Custom user location dot (replaces native showsUserLocation)
+  userDotOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.accentSubtle,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userDotInner: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Colors.accent,
+    borderWidth: 2,
+    borderColor: Colors.white,
   },
 });

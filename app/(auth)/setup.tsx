@@ -1,5 +1,6 @@
 // Required installs (if not yet installed):
-// npx expo install expo-image expo-image-picker react-hook-form @hookform/resolvers zod
+// npx expo install expo-image expo-image-picker expo-file-system
+// npm install react-hook-form @hookform/resolvers zod base64-arraybuffer
 
 import { useState } from 'react';
 import {
@@ -15,7 +16,9 @@ import {
   View,
 } from 'react-native';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { decode } from 'base64-arraybuffer';
 import { Image } from 'expo-image';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -58,14 +61,21 @@ type Step2Values = z.infer<typeof step2Schema>;
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function uploadAvatar(localUri: string, userId: string): Promise<string> {
-  const response = await fetch(localUri);
-  const blob = await response.blob();
-  const ext = localUri.split('.').pop()?.toLowerCase() ?? 'jpg';
-  const path = `${userId}.${ext}`;
+  // React Native's fetch() cannot read file:// URIs on all platforms.
+  // Read the file as a base64 string via expo-file-system, decode it to an
+  // ArrayBuffer with base64-arraybuffer, then upload the raw bytes.
+  // Use the string literal 'base64' rather than FileSystem.EncodingType.Base64.
+  // The enum resolves to the same value but throws at runtime if expo-file-system
+  // is not fully linked (EncodingType would be undefined, crashing the lookup).
+  const base64 = await FileSystem.readAsStringAsync(localUri, {
+    encoding: 'base64',
+  });
+  const arrayBuffer = decode(base64);
+  const path = `${userId}.jpg`;
 
   const { error } = await supabase.storage
     .from('avatars')
-    .upload(path, blob, { upsert: true, contentType: `image/${ext}` });
+    .upload(path, arrayBuffer, { upsert: true, contentType: 'image/jpeg' });
 
   if (error) throw error;
 
@@ -129,10 +139,16 @@ export default function SetupScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        // Pass the string literal array — the safest form per SDK 52+ docs.
+        // MediaTypeOptions is deprecated; MediaType enum keys are lowercase
+        // ('images'), not 'Images' or 'PHOTO', so the array avoids that trap.
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        // quality < 1.0 forces Expo to transcode HEIC → JPEG before handing
+        // back the URI. Without this, iOS camera roll photos stay as .heic
+        // and Supabase Storage rejects them if the bucket only accepts JPEG/PNG.
+        quality: 0.7,
       });
 
       if (!result.canceled && result.assets.length > 0) {
