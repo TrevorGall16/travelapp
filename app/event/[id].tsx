@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,6 +15,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -153,6 +155,19 @@ export default function EventChatScreen() {
   const { id: eventId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  // useWindowDimensions gives the live usable window (excludes nav bar on Android).
+  // Dimensions.get('screen') is the full physical display height.
+  // The difference is the exact hardware nav bar height on any device, even when
+  // useSafeAreaInsets().bottom returns 0 in Expo Go / Dev Client.
+  const { height: windowHeight } = useWindowDimensions();
+  const screenHeight = Dimensions.get('screen').height;
+  const androidNavBarHeight = screenHeight - windowHeight;
+  // +20px safe margin ensures clearance even if the OS draws a thin gesture handle
+  const bottomBumper = Platform.OS === 'android'
+    ? androidNavBarHeight + 20
+    : insets.bottom;
+
   const { user, profile, streamToken } = useAuthStore();
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -181,6 +196,14 @@ export default function EventChatScreen() {
 
   // isDeleting: locks the UI during the delete-event Edge Function call
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // isParticipant: true if the current user is already a member of this event's Stream channel
+  const [isParticipant, setIsParticipant] = useState(false);
+  // maxParticipants: null means unlimited
+  const [maxParticipants, setMaxParticipants] = useState<number | null>(null);
+  const [isFull, setIsFull] = useState(false);
+  // isJoining: locks the Join button during the Edge Function call
+  const [isJoining, setIsJoining] = useState(false);
 
   const channelRef = useRef<StreamChannel | null>(null);
 
@@ -222,7 +245,7 @@ export default function EventChatScreen() {
         // 1. Fetch event metadata
         const { data: eventData, error: eventError } = await supabase
           .from('events')
-          .select('title, participant_count, status, host_id, meetup_point_label')
+          .select('title, participant_count, max_participants, status, host_id, meetup_point_label')
           .eq('id', eventId)
           .single();
 
@@ -236,6 +259,9 @@ export default function EventChatScreen() {
           setParticipantCount(eventData.participant_count);
           setEventStatus(eventData.status as 'active' | 'expired');
           setEventHostId(eventData.host_id ?? null);
+          const cap = eventData.max_participants ?? null;
+          setMaxParticipants(cap);
+          setIsFull(cap !== null && eventData.participant_count >= cap);
           // Prefer DB meetup_point_label over channel data for initial load
           if (eventData.meetup_point_label) {
             setMeetupPoint({ label: eventData.meetup_point_label });
@@ -265,7 +291,14 @@ export default function EventChatScreen() {
           return;
         }
 
-        // 4. Read initial meetup_point from channel custom data (if DB column missing)
+        // 4. Determine participation: current user in ch.state.members → already a member
+        if (!cancelled) {
+          setIsParticipant(
+            Object.prototype.hasOwnProperty.call(ch.state.members, user.id)
+          );
+        }
+
+        // 5. Read initial meetup_point from channel custom data (if DB column missing)
         if (!eventData.meetup_point_label) {
           const rawMeetup = (ch.data as Record<string, unknown>)?.meetup_point;
           if (rawMeetup && typeof rawMeetup === 'object') {
@@ -350,6 +383,48 @@ export default function EventChatScreen() {
     setMeetupModalVisible(true);
   }, [meetupPoint]);
 
+  // ── Join event ─────────────────────────────────────────────────────────────
+  // The Edge Function handles both the DB insert and Stream channel membership
+  // atomically (with rollback). Client must NOT call channel.addMembers separately.
+  const handleJoinEvent = useCallback(async () => {
+    if (!user || !eventId) return;
+    setIsJoining(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('join-event', {
+        body: { event_id: eventId },
+      });
+
+      if (error) throw new Error(error.message ?? 'Join failed.');
+
+      if (data?.code === 'EVENT_EXPIRED') {
+        Alert.alert('Event Ended', 'This event has already expired.');
+        setEventStatus('expired');
+        return;
+      }
+      if (data?.code === 'VERIFIED_ONLY') {
+        Alert.alert('Verified Travelers Only', data.error ?? 'You need to be verified to join this event.');
+        return;
+      }
+      if (data?.code === 'LIMIT_REACHED' || data?.error) {
+        Alert.alert('Sorry!', data.error ?? 'This event just filled up.');
+        setIsFull(true);
+        return;
+      }
+
+      // Success — update local state optimistically
+      setIsParticipant(true);
+      if (!data?.already_member) {
+        setParticipantCount(prev => prev + 1);
+        setIsFull(maxParticipants !== null && participantCount + 1 >= maxParticipants);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not join the event. Please try again.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsJoining(false);
+    }
+  }, [user, eventId, maxParticipants, participantCount]);
+
   // ── Delete event (host only) ────────────────────────────────────────────────
   // Architecture: all deletions go through the delete-event Edge Function,
   // which syncs Stream.io before removing the DB row. Client never writes DELETE.
@@ -379,7 +454,7 @@ export default function EventChatScreen() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (isConnecting) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+      <View style={{ height: windowHeight, backgroundColor: Colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Connecting to chat…</Text>
@@ -391,7 +466,7 @@ export default function EventChatScreen() {
   // ── Error ──────────────────────────────────────────────────────────────────
   if (connectError || !streamChannel) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+      <View style={{ height: windowHeight, backgroundColor: Colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
           <Text style={styles.errorLabel}>⚠️ Connection Failed</Text>
           <Text style={styles.errorText}>
@@ -417,7 +492,7 @@ export default function EventChatScreen() {
     // Brute-force inset padding: works in Expo Go / Dev Client where native nav bar
     // config overrides are ignored. paddingTop clears the notch/status bar on all
     // platforms; paddingBottom on the input bumper clears the home indicator / nav bar.
-    <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+    <View style={{ height: windowHeight, backgroundColor: Colors.background, paddingTop: insets.top }}>
 
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -467,6 +542,31 @@ export default function EventChatScreen() {
         onSetMeetupPoint={handleSetMeetupPoint}
       />
 
+      {/* ── Join bar — hidden for host; shows join CTA for non-participants ── */}
+      {!isHost && (
+        <View style={styles.joinBar}>
+          {isParticipant ? null : isFull ? (
+            // Case C: event is at capacity
+            <View style={[styles.joinButton, styles.joinButtonDisabled]}>
+              <Text style={styles.joinButtonTextMuted}>Event Full</Text>
+            </View>
+          ) : (
+            // Case D: user can join
+            <TouchableOpacity
+              style={[styles.joinButton, styles.joinButtonAccent, isJoining && styles.joinButtonLoading]}
+              onPress={handleJoinEvent}
+              disabled={isJoining}
+              activeOpacity={0.8}
+            >
+              {isJoining
+                ? <ActivityIndicator size="small" color={Colors.white} />
+                : <Text style={styles.joinButtonText}>Join Meetup</Text>
+              }
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {/* ── Stream chat ── */}
       <OverlayProvider>
         <Chat client={streamClient} style={STREAM_THEME}>
@@ -476,11 +576,16 @@ export default function EventChatScreen() {
               <MessageList noGroupByUser />
             </View>
 
-            {/* TODO Phase 4: replace with custom InputBox (photo/camera/poll) */}
-            {/* Brute-force bumper: insets.bottom clears home indicator (iOS) / nav bar (Android) */}
-            <View style={{ paddingBottom: Platform.OS === 'android' ? insets.bottom + 40 : insets.bottom }}>
-              <MessageInput />
-            </View>
+            {/* MessageInput only for participants and host — non-members get a read-only view */}
+            {(isParticipant || isHost) ? (
+              /* TODO Phase 4: replace with custom InputBox (photo/camera/poll) */
+              <View style={{ paddingBottom: bottomBumper }}>
+                <MessageInput />
+              </View>
+            ) : (
+              /* Nudge for non-members: mirrors the join bar padding so layout is stable */
+              <View style={{ paddingBottom: bottomBumper }} />
+            )}
           </Channel>
         </Chat>
       </OverlayProvider>
@@ -805,6 +910,43 @@ const styles = StyleSheet.create({
   },
 
   // ── Expired banner ────────────────────────────────────────────────────────
+  // ── Join bar ──────────────────────────────────────────────────────────────
+  joinBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  joinButton: {
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 46,
+  },
+  joinButtonAccent: {
+    backgroundColor: Colors.accent,
+  },
+  joinButtonDisabled: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  joinButtonLoading: {
+    opacity: 0.6,
+  },
+  joinButtonText: {
+    color: Colors.white,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  joinButtonTextMuted: {
+    color: Colors.textTertiary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
   expiredBanner: {
     backgroundColor: Colors.errorBackground,
     borderBottomWidth: 1,
