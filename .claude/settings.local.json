@@ -8,7 +8,8 @@
       "Bash(npm show:*)",
       "Bash(python3:*)",
       "WebSearch",
-      "WebFetch(domain:docs.expo.dev)"
+      "WebFetch(domain:docs.expo.dev)",
+      "Bash(ls:*)"
     ]
   }
 }

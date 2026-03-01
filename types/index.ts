@@ -7,6 +7,9 @@ export interface Profile {
   avatar_url: string | null;
   bio: string | null;
   instagram_handle: string | null;
+  travel_styles: string[];
+  languages: string[];
+  visited_countries: string[];
   verification_status: VerificationStatus;
   push_token: string | null;
   events_hosted_count: number;

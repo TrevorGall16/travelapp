@@ -166,6 +166,8 @@ export default function RootLayout() {
             <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
             <Stack.Screen name="event/[id]" />
             <Stack.Screen name="user/[id]" />
+            <Stack.Screen name="profile/edit" />
+            <Stack.Screen name="profile/preview" />
           </Stack>
         )}
       </GestureHandlerRootView>

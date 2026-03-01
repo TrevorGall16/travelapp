@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COUNTRIES } from '../../constants/countries';
@@ -41,21 +42,23 @@ export default function ProfileScreen() {
     >
       {/* ── Hero ── */}
       <View style={styles.hero}>
-        <View style={styles.avatarRing}>
-          {profile?.avatar_url ? (
-            <Image
-              source={{ uri: profile.avatar_url }}
-              style={styles.avatar}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={styles.avatarFallback}>
-              <Text style={styles.avatarInitial}>
-                {profile?.display_name?.[0]?.toUpperCase() ?? '?'}
-              </Text>
-            </View>
-          )}
-        </View>
+        <TouchableOpacity onPress={() => router.push('/profile/preview')} activeOpacity={0.85}>
+          <View style={styles.avatarRing}>
+            {profile?.avatar_url ? (
+              <Image
+                source={{ uri: profile.avatar_url }}
+                style={styles.avatar}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarInitial}>
+                  {profile?.display_name?.[0]?.toUpperCase() ?? '?'}
+                </Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
 
         <Text style={styles.displayName}>{profile?.display_name ?? 'Traveler'}</Text>
 
@@ -103,7 +106,7 @@ export default function ProfileScreen() {
       <View style={styles.actionsCard}>
         <TouchableOpacity
           style={styles.actionRow}
-          onPress={() => console.log('Edit Profile')}
+          onPress={() => router.push('/profile/edit')}
           activeOpacity={0.7}
         >
           <Text style={styles.actionLabel}>Edit Profile</Text>
