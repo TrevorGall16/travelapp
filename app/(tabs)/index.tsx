@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -24,7 +25,7 @@ import MapView, {
 import * as Location from 'expo-location';
 import Supercluster from 'supercluster';
 import { useRouter } from 'expo-router';
-import { Bell, Plus, SlidersHorizontal } from 'lucide-react-native';
+import { Bell, Check, Plus, SlidersHorizontal } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
@@ -42,6 +43,12 @@ const FETCH_RADIUS_METERS = FETCH_RADIUS_KM * 1_000; // kept for haversine guard
 const REFETCH_THRESHOLD_METERS = 500;
 const LOCATION_INTERVAL_MS = 30_000;
 const LOCATION_DISTANCE_M = 100;
+
+const FILTER_OPTIONS: { label: string; value: string }[] = [
+  { label: 'All Events', value: 'all' },
+  { label: 'Today', value: 'today' },
+  { label: 'This Week', value: 'this_week' },
+];
 
 const CATEGORY_EMOJI: Record<EventCategory, string> = {
   beer: '🍺',
@@ -135,6 +142,8 @@ export default function MapScreen() {
   const [clusters, setClusters] = useState<ClusterOutput[]>([]);
   const [region, setRegion] = useState<Region | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
 
   const mapRef = useRef<MapView>(null);
   const lastFetchRef = useRef<{ latitude: number; longitude: number } | null>(
@@ -550,7 +559,7 @@ export default function MapScreen() {
       {/* ── Map Header ── */}
       <View style={[styles.mapHeader, { paddingTop: insets.top }]}>
         <View style={styles.mapHeaderSpacer} />
-        <Text style={styles.appName}>NomadMeet</Text>
+        <Text style={styles.appName}>Globe</Text>
         <View style={styles.mapHeaderActions}>
           <TouchableOpacity
             style={styles.iconBtn}
@@ -561,10 +570,14 @@ export default function MapScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => console.log('Open Filters')}
+            onPress={() => setIsFilterModalVisible(true)}
             activeOpacity={0.7}
           >
-            <SlidersHorizontal size={22} color={Colors.textPrimary} strokeWidth={2} />
+            <SlidersHorizontal
+              size={22}
+              color={activeFilter !== 'all' ? Colors.accent : Colors.textPrimary}
+              strokeWidth={2}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -632,6 +645,49 @@ export default function MapScreen() {
           <Plus color={Colors.white} size={28} strokeWidth={2.5} />
         </Pressable>
       )}
+
+      {/* ── Filter Modal ── */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isFilterModalVisible}
+        onRequestClose={() => setIsFilterModalVisible(false)}
+      >
+        {/* Semi-transparent backdrop — tap to dismiss */}
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setIsFilterModalVisible(false)}
+        />
+
+        {/* Bottom sheet */}
+        <View style={[styles.filterSheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.filterHandle} />
+          <Text style={styles.filterTitle}>Filter Events</Text>
+
+          {FILTER_OPTIONS.map(option => {
+            const isActive = activeFilter === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[styles.filterRow, isActive && styles.filterRowActive]}
+                onPress={() => {
+                  setActiveFilter(option.value);
+                  setIsFilterModalVisible(false);
+                  console.log('Filter changed:', option.value);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.filterRowLabel, isActive && styles.filterRowLabelActive]}>
+                  {option.label}
+                </Text>
+                {isActive && (
+                  <Check size={18} color={Colors.accent} strokeWidth={2.5} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -805,5 +861,58 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent,
     borderWidth: 2,
     borderColor: Colors.white,
+  },
+
+  // ── Filter Modal ──────────────────────────────────────────────
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  filterSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+  },
+  filterHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: Colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  filterTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+  },
+  filterRowActive: {
+    // No background change — checkmark + accent text convey selection
+  },
+  filterRowLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+  },
+  filterRowLabelActive: {
+    color: Colors.accent,
+    fontWeight: '600',
   },
 });

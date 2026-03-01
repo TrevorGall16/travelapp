@@ -17,10 +17,16 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import MapView, {
+  Marker,
+  PROVIDER_GOOGLE,
+  PROVIDER_DEFAULT,
+} from 'react-native-maps';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 
@@ -91,6 +97,12 @@ export default function CreateEventScreen() {
   const { addEvent } = useMapStore();
 
   const isVerified = profile?.verification_status === 'verified';
+
+  // ── Pin location (user-draggable) ─────────────────────────────────────────
+  // Initialized from GPS coords; user can drag the marker to refine.
+  const [pinCoords, setPinCoords] = useState<{ latitude: number; longitude: number }>(
+    () => coordinates ?? { latitude: 0, longitude: 0 },
+  );
 
   // ── Expiry datetime state ─────────────────────────────────────────────────
   // Default: 2 hours from now
@@ -183,8 +195,8 @@ export default function CreateEventScreen() {
           category: values.category,
           description: values.description || null,
           expires_at: expiresAt.toISOString(),
-          latitude: coordinates.latitude,
-          longitude: coordinates.longitude,
+          latitude: pinCoords.latitude,
+          longitude: pinCoords.longitude,
           city: city ?? null,
           verified_only: values.verified_only,
         },
@@ -219,8 +231,8 @@ export default function CreateEventScreen() {
         arrivals: 0,
         post_event_messages: 0,
         created_at: new Date().toISOString(),
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
+        latitude: pinCoords.latitude,
+        longitude: pinCoords.longitude,
       };
       addEvent(optimisticEvent);
 
@@ -247,7 +259,7 @@ export default function CreateEventScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -374,6 +386,37 @@ export default function CreateEventScreen() {
             )}
           </View>
 
+          {/* ── Location picker ── */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Event Location</Text>
+            <Text style={styles.locationHint}>Tap anywhere on the map to set the exact location.</Text>
+            {coordinates ? (
+              <View style={styles.mapPickerContainer}>
+                <MapView
+                  style={styles.mapPicker}
+                  provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
+                  initialRegion={{
+                    latitude: pinCoords.latitude,
+                    longitude: pinCoords.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                  rotateEnabled={false}
+                  pitchEnabled={false}
+                  onPress={(e) => setPinCoords(e.nativeEvent.coordinate)}
+                >
+                  <Marker coordinate={pinCoords} />
+                </MapView>
+              </View>
+            ) : (
+              <View style={styles.mapPlaceholder}>
+                <Text style={styles.mapPlaceholderText}>
+                  Waiting for location…{'\n'}Enable location access to set your event pin.
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* ── Expiry — datetime picker ── */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Event ends at</Text>
@@ -455,18 +498,6 @@ export default function CreateEventScreen() {
             )}
           />
 
-          {/* ── Location indicator ── */}
-          <View style={styles.locationRow}>
-            <Text style={styles.locationPin}>📍</Text>
-            <Text style={styles.locationText} numberOfLines={1}>
-              {coordinates
-                ? city
-                  ? `${city} — current location`
-                  : 'Current location'
-                : 'Waiting for location…'}
-            </Text>
-          </View>
-
           {/* ── Publish button ── */}
           <Pressable
             style={[styles.publishBtn, isPublishDisabled && styles.btnDisabled]}
@@ -489,7 +520,7 @@ export default function CreateEventScreen() {
       >
         <Text style={styles.toastText}>{toastMessage}</Text>
       </Animated.View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -620,6 +651,38 @@ const styles = StyleSheet.create({
     color: '#F8FAFC',
   },
 
+  // Location picker
+  locationHint: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: -2,
+  },
+  mapPickerContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  mapPicker: {
+    height: 250,
+  },
+  mapPlaceholder: {
+    height: 120,
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  mapPlaceholderText: {
+    fontSize: 14,
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
   // Datetime picker row
   dateRow: {
     flexDirection: 'row',
@@ -687,27 +750,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     lineHeight: 18,
-  },
-
-  // Location indicator
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#1E293B',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  locationPin: {
-    fontSize: 16,
-  },
-  locationText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#64748B',
   },
 
   // Publish button

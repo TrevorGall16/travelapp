@@ -1,16 +1,14 @@
 import { router } from 'expo-router';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 
 export default function ContactScreen() {
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={styles.flex}>
+    <SafeAreaView style={styles.flex}>
       {/* ── Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
           <Text style={styles.backLabel}>Settings</Text>
@@ -21,7 +19,7 @@ export default function ContactScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: Platform.OS === 'android' ? 100 : insets.bottom + 40 }]}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Support card ── */}
@@ -53,10 +51,10 @@ export default function ContactScreen() {
 
         {/* ── Response time notice ── */}
         <Text style={styles.footnote}>
-          NomadMeet is a small team. We read every message and will get back to you as soon as we can.
+          We are a small team. We read every message and will get back to you as soon as we can.
         </Text>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -71,6 +69,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
+    paddingTop: 10,
     paddingBottom: 14,
     backgroundColor: Colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -104,6 +103,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 28,
+    paddingBottom: 20,
     gap: 16,
   },
 

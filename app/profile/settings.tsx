@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 
@@ -11,12 +11,10 @@ const MENU_ITEMS = [
 ] as const;
 
 export default function SettingsScreen() {
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={styles.flex}>
+    <SafeAreaView style={styles.flex}>
       {/* ── Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
           <Text style={styles.backLabel}>Profile</Text>
@@ -27,7 +25,7 @@ export default function SettingsScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: Platform.OS === 'android' ? 100 : insets.bottom + 40 }]}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Menu ── */}
@@ -58,7 +56,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -73,6 +71,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
+    paddingTop: 10,
     paddingBottom: 14,
     backgroundColor: Colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -106,6 +105,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 28,
+    paddingBottom: 20,
     gap: 32,
   },
 

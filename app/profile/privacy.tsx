@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import { Colors } from '../../constants/theme';
 
@@ -11,11 +11,11 @@ const SECTIONS = [
   },
   {
     heading: '2. How We Use Your Information',
-    body: 'We use your information to operate and improve NomadMeet, personalize your experience, connect you with other travelers, send you relevant notifications, and ensure the safety of our community.',
+    body: 'We use your information to operate and improve the app, personalize your experience, connect you with other travelers, send you relevant notifications, and ensure the safety of our community.',
   },
   {
     heading: '3. Information Sharing',
-    body: 'We do not sell your personal data. Your public profile (name, photo, bio, country) is visible to other NomadMeet users. We share data with trusted service providers — including Supabase (database), Stream (chat), and RevenueCat (purchases) — solely to operate the app.',
+    body: 'We do not sell your personal data. Your public profile (name, photo, bio, country) is visible to other users. We share data with trusted service providers — including Supabase (database), Stream (chat), and RevenueCat (purchases) — solely to operate the app.',
   },
   {
     heading: '4. Location Data',
@@ -32,12 +32,10 @@ const SECTIONS = [
 ] as const;
 
 export default function PrivacyScreen() {
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={styles.flex}>
+    <SafeAreaView style={styles.flex}>
       {/* ── Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
           <Text style={styles.backLabel}>Settings</Text>
@@ -48,14 +46,14 @@ export default function PrivacyScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: Platform.OS === 'android' ? 100 : insets.bottom + 40 }]}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.lastUpdated}>Last updated: March 1, 2026</Text>
 
         <View style={styles.card}>
           <Text style={styles.intro}>
-            NomadMeet ("we", "us", or "our") is committed to protecting your privacy. This policy explains how we collect, use, and share information when you use our app.
+            We are committed to protecting your privacy. This policy explains how we collect, use, and share information when you use our app.
           </Text>
         </View>
 
@@ -66,7 +64,7 @@ export default function PrivacyScreen() {
           </View>
         ))}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -81,6 +79,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
+    paddingTop: 10,
     paddingBottom: 14,
     backgroundColor: Colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -114,6 +113,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 24,
+    paddingBottom: 20,
     gap: 20,
   },
 
