@@ -16,13 +16,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import {
   Channel,
   Chat,
-  KeyboardCompatibleView,
   MessageInput,
   MessageList,
   OverlayProvider,
@@ -66,7 +65,7 @@ const STREAM_THEME = {
   },
   messageSimple: {
     content: {
-      // Force white text inside all message bubbles
+      // Force readable text inside all message bubbles
       markdown: {
         text: { color: Colors.textPrimary },
         em: { color: Colors.textPrimary },
@@ -84,12 +83,6 @@ const STREAM_THEME = {
 
 interface MeetupPoint {
   label: string;
-}
-
-interface ParticipantSnippet {
-  id: string;
-  display_name: string;
-  avatar_url: string;
 }
 
 // ─── Meetup Banner ────────────────────────────────────────────────────────────
@@ -154,99 +147,6 @@ const bannerStyles = StyleSheet.create({
   },
 });
 
-// ─── Participant Strip ─────────────────────────────────────────────────────────
-
-function ParticipantStrip({
-  participants,
-  totalCount,
-}: {
-  participants: ParticipantSnippet[];
-  totalCount: number;
-}) {
-  const router = useRouter();
-
-  if (participants.length === 0) return null;
-
-  const overflow = totalCount - participants.length;
-
-  return (
-    <View style={stripStyles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={stripStyles.scroll}
-      >
-        {participants.map((p) => (
-          <TouchableOpacity
-            key={p.id}
-            style={stripStyles.item}
-            onPress={() => router.push(`/user/${p.id}`)}
-            activeOpacity={0.7}
-          >
-            <Image
-              source={{ uri: p.avatar_url }}
-              style={stripStyles.avatar}
-              contentFit="cover"
-            />
-            <Text style={stripStyles.name} numberOfLines={1}>
-              {p.display_name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-        {overflow > 0 && (
-          <View style={stripStyles.item}>
-            <View style={stripStyles.moreCircle}>
-              <Text style={stripStyles.moreText}>+{overflow}</Text>
-            </View>
-          </View>
-        )}
-      </ScrollView>
-    </View>
-  );
-}
-
-const stripStyles = StyleSheet.create({
-  container: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.surface,
-  },
-  scroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 14,
-    alignItems: 'center',
-  },
-  item: {
-    alignItems: 'center',
-    gap: 4,
-    width: 50,
-  },
-  avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.border,
-  },
-  name: {
-    fontSize: 10,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  moreCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  moreText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-});
-
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function EventChatScreen() {
@@ -266,12 +166,13 @@ export default function EventChatScreen() {
   const [eventHostId, setEventHostId] = useState<string | null>(null);
 
   const [meetupPoint, setMeetupPoint] = useState<MeetupPoint | null>(null);
-  const [participants, setParticipants] = useState<ParticipantSnippet[]>([]);
 
   // Options modal (replaces native ActionSheet / Alert.alert for the ••• menu)
   const [optionsModalVisible, setOptionsModalVisible] = useState(false);
   // Delete confirmation modal (replaces Alert.alert — looks better on Android)
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  // Members modal (tappable 👥 count → bottom-sheet member directory)
+  const [isMembersModalVisible, setIsMembersModalVisible] = useState(false);
 
   // Meetup input modal — cross-platform (no Alert.prompt dependency)
   const [meetupModalVisible, setMeetupModalVisible] = useState(false);
@@ -284,6 +185,7 @@ export default function EventChatScreen() {
   const channelRef = useRef<StreamChannel | null>(null);
 
   const isHost = user?.id === eventHostId;
+
 
   // ── 5-second timeout: surface the error instead of spinning forever ────────
   useEffect(() => {
@@ -340,26 +242,7 @@ export default function EventChatScreen() {
           }
         }
 
-        // 2. Fetch participant snippets (first 5 for the avatar strip)
-        const { data: participantIds } = await supabase
-          .from('event_participants')
-          .select('user_id')
-          .eq('event_id', eventId)
-          .limit(5);
-
-        if (!cancelled && participantIds && participantIds.length > 0) {
-          const ids = participantIds.map((p: { user_id: string }) => p.user_id);
-          const { data: profileSnippets } = await supabase
-            .from('profiles')
-            .select('id, display_name, avatar_url')
-            .in('id', ids);
-
-          if (!cancelled && profileSnippets) {
-            setParticipants(profileSnippets as ParticipantSnippet[]);
-          }
-        }
-
-        // 3. Connect Stream user — idempotent: skip if already connected
+        // 2. Connect Stream user — idempotent: skip if already connected
         if (!streamClient.userID) {
           await streamClient.connectUser(
             {
@@ -373,7 +256,7 @@ export default function EventChatScreen() {
 
         if (cancelled) return;
 
-        // 4. Watch the channel (makes it "live" and populates channel.data)
+        // 3. Watch the channel — makes it "live", populates channel.data + state.members
         const ch = streamClient.channel('messaging', `event_${eventId}`);
         await ch.watch();
 
@@ -382,7 +265,7 @@ export default function EventChatScreen() {
           return;
         }
 
-        // 5. Read initial meetup_point from channel custom data (if DB column missing)
+        // 4. Read initial meetup_point from channel custom data (if DB column missing)
         if (!eventData.meetup_point_label) {
           const rawMeetup = (ch.data as Record<string, unknown>)?.meetup_point;
           if (rawMeetup && typeof rawMeetup === 'object') {
@@ -470,9 +353,6 @@ export default function EventChatScreen() {
   // ── Delete event (host only) ────────────────────────────────────────────────
   // Architecture: all deletions go through the delete-event Edge Function,
   // which syncs Stream.io before removing the DB row. Client never writes DELETE.
-  //
-  // handleDeleteEvent  → opens the custom confirm modal
-  // executeDeleteEvent → actually calls the Edge Function (confirm modal "Delete" btn)
   const handleDeleteEvent = useCallback(() => {
     setDeleteConfirmVisible(true);
   }, []);
@@ -499,19 +379,19 @@ export default function EventChatScreen() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (isConnecting) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Connecting to chat…</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   // ── Error ──────────────────────────────────────────────────────────────────
   if (connectError || !streamChannel) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
           <Text style={styles.errorLabel}>⚠️ Connection Failed</Text>
           <Text style={styles.errorText}>
@@ -521,19 +401,23 @@ export default function EventChatScreen() {
             <Text style={styles.goBackBtnText}>Go Back</Text>
           </Pressable>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
+  // ── Members list: host pinned first, then rest ─────────────────────────────
+  const sortedMembers = Object.values(streamChannel.state.members).sort((a, b) => {
+    if (a.user?.id === eventHostId) return -1;
+    if (b.user?.id === eventHostId) return 1;
+    return 0;
+  });
+
   // ── Main render ────────────────────────────────────────────────────────────
-  //
-  // SafeAreaView edges={['top','bottom']} handles both status bar and gesture
-  // nav bar. Android keyboards are handled by the system via adjustResize —
-  // no KeyboardAvoidingView needed. Stream's Channel uses its internal
-  // KeyboardCompatibleView.
-  //
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    // Brute-force inset padding: works in Expo Go / Dev Client where native nav bar
+    // config overrides are ignored. paddingTop clears the notch/status bar on all
+    // platforms; paddingBottom on the input bumper clears the home indicator / nav bar.
+    <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
 
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -550,7 +434,13 @@ export default function EventChatScreen() {
         </Text>
 
         <View style={styles.headerRight}>
-          <Text style={styles.participantBadge}>👥 {participantCount}</Text>
+          {/* Tappable member count → opens members modal */}
+          <Pressable
+            onPress={() => setIsMembersModalVisible(true)}
+            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+          >
+            <Text style={styles.participantBadge}>👥 {participantCount}</Text>
+          </Pressable>
           <Pressable
             onPress={() => setOptionsModalVisible(true)}
             disabled={isDeleting}
@@ -578,33 +468,22 @@ export default function EventChatScreen() {
       />
 
       {/* ── Stream chat ── */}
-      <View style={styles.chatWrapper}>
-        <OverlayProvider>
-          <Chat client={streamClient} style={STREAM_THEME}>
-            <Channel channel={streamChannel}>
-              {/*
-               * KeyboardCompatibleView (Stream's own component) handles the
-               * software keyboard on both iOS and Android, including adjusting
-               * the layout when the keyboard slides up so MessageInput is
-               * never obscured.
-               */}
-              <KeyboardCompatibleView style={styles.chatContainer}>
-                <ParticipantStrip
-                  participants={participants}
-                  totalCount={participantCount}
-                />
-                <View style={styles.messagesFill}>
-                  <MessageList noGroupByUser />
-                </View>
-                {/* TODO Phase 4: replace with custom InputBox (photo/camera/poll) */}
-                <View style={styles.inputSpacer}>
-                  <MessageInput />
-                </View>
-              </KeyboardCompatibleView>
-            </Channel>
-          </Chat>
-        </OverlayProvider>
-      </View>
+      <OverlayProvider>
+        <Chat client={streamClient} style={STREAM_THEME}>
+          <Channel channel={streamChannel} disableKeyboardCompatibleView>
+            {/* Message list fills remaining space; marginBottom keeps bubbles off the input */}
+            <View style={{ flex: 1, marginBottom: 16 }}>
+              <MessageList noGroupByUser />
+            </View>
+
+            {/* TODO Phase 4: replace with custom InputBox (photo/camera/poll) */}
+            {/* Brute-force bumper: insets.bottom clears home indicator (iOS) / nav bar (Android) */}
+            <View style={{ paddingBottom: Platform.OS === 'android' ? insets.bottom + 40 : insets.bottom }}>
+              <MessageInput />
+            </View>
+          </Channel>
+        </Chat>
+      </OverlayProvider>
 
       {/* ── Deleting overlay ── */}
       {isDeleting && (
@@ -781,7 +660,65 @@ export default function EventChatScreen() {
         </View>
       </Modal>
 
-    </SafeAreaView>
+      {/* ── Members modal (bottom sheet, sorted: host first) ── */}
+      <Modal
+        visible={isMembersModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsMembersModalVisible(false)}
+      >
+        <Pressable
+          style={styles.sheetOverlay}
+          onPress={() => setIsMembersModalVisible(false)}
+        />
+        <View style={[styles.membersSheet, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.membersTitle}>Event Members</Text>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {sortedMembers.map((member) => {
+              const isThisHost = member.user?.id === eventHostId;
+              const avatarUri = member.user?.image as string | undefined;
+              const displayName = (member.user?.name as string | undefined) ?? 'Unknown';
+              const userId = member.user?.id ?? '';
+              return (
+                <Pressable
+                  key={userId || member.user_id}
+                  style={({ pressed }) => [
+                    styles.memberRow,
+                    pressed && styles.memberRowPressed,
+                  ]}
+                  onPress={() => {
+                    setIsMembersModalVisible(false);
+                    if (userId) router.push(`/user/${userId}`);
+                  }}
+                >
+                  {avatarUri ? (
+                    <Image
+                      source={{ uri: avatarUri }}
+                      style={styles.memberAvatar}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={[styles.memberAvatar, styles.memberAvatarFallback]}>
+                      <Text style={styles.memberAvatarEmoji}>👤</Text>
+                    </View>
+                  )}
+                  <Text style={styles.memberName} numberOfLines={1}>
+                    {displayName}
+                  </Text>
+                  {isThisHost && (
+                    <View style={styles.hostBadge}>
+                      <Text style={styles.hostBadgeText}>Host</Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </Modal>
+
+    </View>
   );
 }
 
@@ -881,27 +818,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── Stream chat layout ────────────────────────────────────────────────────
-  //
-  // chatWrapper: flex-1 bounded region for the Stream component tree.
-  // OverlayProvider / Chat / Channel are context providers — they don't
-  // self-size and rely on this View for their height.
-  chatWrapper: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  chatContainer: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  messagesFill: {
-    flex: 1,
-    marginBottom: 10, // visual gap between last bubble and the input bar
-  },
-  inputSpacer: {
-    // Prevents MessageInput from touching the bottom of the screen on some devices
-    paddingBottom: 2,
-  },
 
   // ── Deleting overlay ──────────────────────────────────────────────────────
   deletingOverlay: {
@@ -1098,5 +1014,78 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: Colors.white,
+  },
+
+  // ── Members modal ─────────────────────────────────────────────────────────
+  membersSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    maxHeight: '70%',
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    paddingHorizontal: 0,
+  },
+  membersTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  memberRowPressed: {
+    backgroundColor: Colors.background,
+  },
+  memberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.border,
+    flexShrink: 0,
+  },
+  memberAvatarFallback: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  memberAvatarEmoji: {
+    fontSize: 18,
+  },
+  memberName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  hostBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: Colors.accentSubtle ?? Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.accent,
+  },
+  hostBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.accent,
+    letterSpacing: 0.3,
   },
 });

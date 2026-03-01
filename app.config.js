@@ -42,7 +42,16 @@ export default {
         "ACCESS_FINE_LOCATION",
         "FOREGROUND_SERVICE"
       ],
-      predictiveBackGestureEnabled: false
+      predictiveBackGestureEnabled: false,
+      softwareKeyboardLayoutMode: "resize",
+      navigationBar: {
+        visible: true,
+        backgroundColor: "#000000",
+        barStyle: "light-content"
+      },
+      statusBar: {
+        translucent: false
+      }
     },
     web: {
       favicon: "./assets/favicon.png"
