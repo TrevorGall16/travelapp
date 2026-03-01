@@ -11,8 +11,10 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, {
   Marker,
   type Region,
@@ -22,7 +24,7 @@ import MapView, {
 import * as Location from 'expo-location';
 import Supercluster from 'supercluster';
 import { useRouter } from 'expo-router';
-import { Plus } from 'lucide-react-native';
+import { Bell, Plus, SlidersHorizontal } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
@@ -121,6 +123,7 @@ function eventsToGeoFeatures(
 
 export default function MapScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { profile } = useAuthStore();
   const { coordinates, city, setCoordinates, setPermissionStatus, setCity } =
     useLocationStore();
@@ -544,11 +547,26 @@ export default function MapScreen() {
 
   return (
     <View style={styles.fill}>
-      {/* City name top bar */}
-      <View style={styles.topBar} pointerEvents="none">
-        <Text style={styles.cityName} numberOfLines={1}>
-          {city ?? 'Finding location…'}
-        </Text>
+      {/* ── Map Header ── */}
+      <View style={[styles.mapHeader, { paddingTop: insets.top }]}>
+        <View style={styles.mapHeaderSpacer} />
+        <Text style={styles.appName}>NomadMeet</Text>
+        <View style={styles.mapHeaderActions}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => console.log('Open Notifications')}
+            activeOpacity={0.7}
+          >
+            <Bell size={22} color={Colors.textPrimary} strokeWidth={2} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => console.log('Open Filters')}
+            activeOpacity={0.7}
+          >
+            <SlidersHorizontal size={22} color={Colors.textPrimary} strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <MapView
@@ -625,21 +643,37 @@ const styles = StyleSheet.create({
   centeredFill: { justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 },
   map: { flex: 1 },
 
-  // Top city bar
-  topBar: {
-    position: 'absolute',
-    top: 56,
-    alignSelf: 'center',
-    backgroundColor: Colors.overlayMedium,
+  // Map header bar
+  mapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    zIndex: 10,
+    paddingBottom: 12,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+    zIndex: 20,
   },
-  cityName: {
+  mapHeaderSpacer: {
+    flex: 1,
+  },
+  appName: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '800',
     color: Colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.4,
+  },
+  mapHeaderActions: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 4,
+  },
+  iconBtn: {
+    padding: 8,
   },
 
   // Cluster bubble
@@ -700,10 +734,10 @@ const styles = StyleSheet.create({
     marginTop: -1,
   },
 
-  // Empty state — sits below the city bar, well above the FAB
+  // Empty state — sits just below the map header, well above the FAB
   emptyBanner: {
     position: 'absolute',
-    top: 110,
+    top: 100,
     alignSelf: 'center',
     backgroundColor: Colors.overlayStrong,
     paddingHorizontal: 20,

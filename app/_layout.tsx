@@ -168,6 +168,10 @@ export default function RootLayout() {
             <Stack.Screen name="user/[id]" />
             <Stack.Screen name="profile/edit" />
             <Stack.Screen name="profile/preview" />
+            <Stack.Screen name="profile/settings" />
+            <Stack.Screen name="profile/contact" />
+            <Stack.Screen name="profile/privacy" />
+            <Stack.Screen name="profile/terms" />
           </Stack>
         )}
       </GestureHandlerRootView>

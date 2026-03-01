@@ -117,7 +117,7 @@ export default function ProfileScreen() {
 
         <TouchableOpacity
           style={styles.actionRow}
-          onPress={() => console.log('Settings')}
+          onPress={() => router.push('/profile/settings')}
           activeOpacity={0.7}
         >
           <Text style={styles.actionLabel}>Settings</Text>

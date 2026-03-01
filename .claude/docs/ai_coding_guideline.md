@@ -55,5 +55,10 @@ The Builder AI must assume the internet is unreliable, APIs will return empty or
 * **Versioning as a Pre-Commit Requirement:** You must increment the `version` (e.g., "1.0.1") and `ios.buildNumber` / `android.versionCode` integers in `app.json` before triggering any EAS build. Apple and Google will instantly reject duplicate version strings.
 * **No Hardcoded System Styling:** Do not hardcode specific font families (like 'Courier' or 'Roboto') that override native UI expectations. Let React Native default to the system fonts (San Francisco on iOS, Roboto on Android) for a premium, native feel. 
 * **Boilerplate Cleanup:** Before the first production build, you must locate and delete all default Expo/React Native placeholder tests (e.g., default `<Text>Open up App.js to start working on your app!</Text>` components or placeholder `App.test.tsx` files). Stale tests will crash the automated CI/CD pipeline.
+
+### Safe Area & Screen Edges
+- **The Bottom Bar Rule:** ALL scrollable screens and absolute bottom elements MUST use `useSafeAreaInsets` from `react-native-safe-area-context`.
+- The main container or ScrollView `contentContainerStyle` MUST include `paddingBottom: insets.bottom + 20` (or appropriate spacing). 
+- You must NEVER hardcode bottom padding for full-screen views without accounting for the OS navigation bar, to prevent content from bleeding under the Android nav bar or iOS home indicator.
 ---
 *End of AI Coding Guidelines*
