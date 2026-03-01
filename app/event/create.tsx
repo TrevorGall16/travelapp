@@ -98,11 +98,11 @@ export default function CreateEventScreen() {
 
   const isVerified = profile?.verification_status === 'verified';
 
-  // ── Pin location (user-draggable) ─────────────────────────────────────────
-  // Initialized from GPS coords; user can drag the marker to refine.
+  // ── Pin location (tap-to-place) ───────────────────────────────────────────
   const [pinCoords, setPinCoords] = useState<{ latitude: number; longitude: number }>(
     () => coordinates ?? { latitude: 0, longitude: 0 },
   );
+  const [locationName, setLocationName] = useState('');
 
   // ── Expiry datetime state ─────────────────────────────────────────────────
   // Default: 2 hours from now
@@ -197,6 +197,7 @@ export default function CreateEventScreen() {
           expires_at: expiresAt.toISOString(),
           latitude: pinCoords.latitude,
           longitude: pinCoords.longitude,
+          location_name: locationName.trim() || null,
           city: city ?? null,
           verified_only: values.verified_only,
         },
@@ -384,6 +385,23 @@ export default function CreateEventScreen() {
             {errors.description && (
               <Text style={styles.errorText}>{errors.description.message}</Text>
             )}
+          </View>
+
+          {/* ── Location name ── */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>
+              Location Name / Details{' '}
+              <Text style={styles.labelOptional}>(optional)</Text>
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={locationName}
+              onChangeText={setLocationName}
+              placeholder="e.g. Starbucks near the park"
+              placeholderTextColor="#475569"
+              maxLength={100}
+              returnKeyType="done"
+            />
           </View>
 
           {/* ── Location picker ── */}

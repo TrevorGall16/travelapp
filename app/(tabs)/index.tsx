@@ -178,9 +178,11 @@ export default function MapScreen() {
         console.error('[Map] get_nearby_events error:', error.message, error.details);
         return;
       }
+      const now = new Date();
       const parsed: Event[] = ((data ?? []) as DBEvent[])
         .map(dbEventToEvent)
-        .filter((e): e is Event => e !== null);
+        .filter((e): e is Event => e !== null)
+        .filter(e => e.status === 'active' && new Date(e.expires_at) > now);
 
       console.log('[Map Fetch] Parsed events:', parsed.length,
         '| skipped (bad coords):', (data?.length ?? 0) - parsed.length,
@@ -563,7 +565,7 @@ export default function MapScreen() {
         <View style={styles.mapHeaderActions}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => console.log('Open Notifications')}
+            onPress={() => router.push('/notifications')}
             activeOpacity={0.7}
           >
             <Bell size={22} color={Colors.textPrimary} strokeWidth={2} />
@@ -596,6 +598,7 @@ export default function MapScreen() {
           }
         }
         onRegionChangeComplete={handleRegionChangeComplete}
+        showsMapToolbar={false}
       >
         {renderedMarkers}
 

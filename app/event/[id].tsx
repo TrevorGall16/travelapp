@@ -267,6 +267,7 @@ export default function EventChatScreen() {
   const [eventTitle, setEventTitle] = useState('');
   const [participantCount, setParticipantCount] = useState(0);
   const [eventStatus, setEventStatus] = useState<'active' | 'expired'>('active');
+  const [eventHostId, setEventHostId] = useState<string | null>(null);
 
   const [meetupPoint, setMeetupPoint] = useState<MeetupPoint | null>(null);
   const [participants, setParticipants] = useState<ParticipantSnippet[]>([]);
@@ -311,7 +312,7 @@ export default function EventChatScreen() {
         // 1. Fetch event metadata
         const { data: eventData, error: eventError } = await supabase
           .from('events')
-          .select('title, participant_count, status')
+          .select('title, participant_count, status, host_id')
           .eq('id', eventId)
           .single();
 
@@ -324,6 +325,7 @@ export default function EventChatScreen() {
           setEventTitle(eventData.title);
           setParticipantCount(eventData.participant_count);
           setEventStatus(eventData.status as 'active' | 'expired');
+          setEventHostId(eventData.host_id ?? null);
         }
 
         // 2. Fetch participant snippets (first 5 for the avatar strip)
@@ -435,8 +437,8 @@ export default function EventChatScreen() {
               if (error) {
                 throw new Error(error.message ?? 'Delete failed.');
               }
-              // Success: navigate back to the map
-              router.back();
+              // Success: navigate back to the map root
+              router.replace('/(tabs)/');
             } catch (err) {
               const msg = err instanceof Error ? err.message : 'Could not delete the event.';
               console.error('[EventChat] delete-event error:', msg);
@@ -618,6 +620,17 @@ export default function EventChatScreen() {
         </OverlayProvider>
       </View>
 
+      {/* ── Host-only delete button ── */}
+      {user?.id === eventHostId && eventStatus === 'active' && (
+        <Pressable
+          style={[styles.deleteEventBtn, isDeleting && styles.deleteEventBtnDisabled]}
+          onPress={handleDeleteEvent}
+          disabled={isDeleting}
+        >
+          <Text style={styles.deleteEventBtnText}>Delete Event</Text>
+        </Pressable>
+      )}
+
       {/* ── Deleting overlay — blocks UI while delete-event Edge Function runs ── */}
       {isDeleting && (
         <View style={styles.deletingOverlay}>
@@ -761,5 +774,22 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  // ── Host delete button ────────────────────────────────────────
+  deleteEventBtn: {
+    backgroundColor: Colors.errorBackground,
+    borderTopWidth: 1,
+    borderTopColor: Colors.errorBorder,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  deleteEventBtnDisabled: {
+    opacity: 0.5,
+  },
+  deleteEventBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.errorLight,
   },
 });

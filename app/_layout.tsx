@@ -172,6 +172,7 @@ export default function RootLayout() {
             <Stack.Screen name="profile/contact" />
             <Stack.Screen name="profile/privacy" />
             <Stack.Screen name="profile/terms" />
+            <Stack.Screen name="notifications" />
           </Stack>
         )}
       </GestureHandlerRootView>

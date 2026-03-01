@@ -162,6 +162,7 @@ export default function MyEventsScreen() {
         .from('events')
         .select('id, title, category, status, expires_at, host_id, participant_count')
         .in('id', eventIds)
+        .gte('expires_at', new Date().toISOString())
         .order('expires_at', { ascending: true });
 
       if (eventError) throw eventError;
