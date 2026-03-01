@@ -1,0 +1,28 @@
+1. The Immediate Fix (The Bridge)
+Keep your Metro terminal running. Open a new, second PowerShell window and run this exact command:
+
+PowerShell
+adb reverse tcp:8081 tcp:8081
+If that returns an error like device not found, your USB cable is loose or "USB Debugging" turned itself off on your phone. Unplug the cable, plug it back in, and make sure you see the "Allow USB Debugging?" prompt on your phone screen.
+
+2. The "Nuclear" Restart
+If adb reverse doesn't fix it instantly, the ADB server itself has crashed. Run this sequence in your terminal:
+
+PowerShell
+adb kill-server
+adb start-server
+adb reverse tcp:8081 tcp:8081
+3. Verification
+Once you run those, go back to your phone and Shake the device to ope
+
+
+If the app is already on your phone
+If you've already built the app and just need to start the Metro bundler so the code updates when you save, use this "Cache-Buster" version:
+
+PowerShell
+npx expo start --dev-client -c
+Pro-Tip for your notes:
+If the app opens but can't connect to your computer, remember the "Handshake" command to link the ports:
+
+PowerShell
+adb reverse tcp:8081 tcp:8081
