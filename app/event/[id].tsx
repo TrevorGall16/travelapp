@@ -5,15 +5,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import {
@@ -30,6 +34,21 @@ import { streamClient } from '../../lib/streamClient';
 import { useAuthStore } from '../../stores/authStore';
 import { useLocationStore } from '../../stores/locationStore';
 import { Colors } from '../../constants/theme';
+
+// ─── Stream dark theme ────────────────────────────────────────────────────────
+
+const STREAM_THEME = {
+  colors: {
+    white_snow: Colors.background,
+    white: Colors.surface,
+    black: Colors.textPrimary,
+    grey: Colors.textSecondary,
+    grey_gainsboro: Colors.border,
+    grey_whisper: Colors.surface,
+    bg_gradient_start: Colors.background,
+    bg_gradient_end: Colors.background,
+  },
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,9 +93,13 @@ function distanceLabel(
 function MeetupBanner({
   meetupPoint,
   userCoords,
+  isHost,
+  onSetMeetupPoint,
 }: {
   meetupPoint: MeetupPoint | null;
   userCoords: { latitude: number; longitude: number } | null;
+  isHost?: boolean;
+  onSetMeetupPoint?: () => void;
 }) {
   const openInMaps = () => {
     if (!meetupPoint) return;
@@ -111,6 +134,11 @@ function MeetupBanner({
               </Text>
             )}
           </>
+        ) : isHost ? (
+          <TouchableOpacity onPress={onSetMeetupPoint} activeOpacity={0.7}>
+            <Text style={bannerStyles.noPoint}>No meetup point yet</Text>
+            <Text style={bannerStyles.noPointHint}>Tap to set one</Text>
+          </TouchableOpacity>
         ) : (
           <Text style={bannerStyles.noPoint}>No meetup point yet</Text>
         )}
@@ -152,6 +180,11 @@ const bannerStyles = StyleSheet.create({
     color: Colors.textTertiary,
     fontStyle: 'italic',
   },
+  noPointHint: {
+    fontSize: 11,
+    color: Colors.accent,
+    marginTop: 2,
+  },
   mapsBtn: {
     backgroundColor: Colors.accent,
     borderRadius: 8,
@@ -174,6 +207,8 @@ function ParticipantStrip({
   participants: ParticipantSnippet[];
   totalCount: number;
 }) {
+  const router = useRouter();
+
   if (participants.length === 0) return null;
 
   const overflow = totalCount - participants.length;
@@ -186,7 +221,12 @@ function ParticipantStrip({
         contentContainerStyle={stripStyles.scroll}
       >
         {participants.map((p) => (
-          <View key={p.id} style={stripStyles.item}>
+          <TouchableOpacity
+            key={p.id}
+            style={stripStyles.item}
+            onPress={() => router.push(`/user/${p.id}`)}
+            activeOpacity={0.7}
+          >
             <Image
               source={{ uri: p.avatar_url }}
               style={stripStyles.avatar}
@@ -195,7 +235,7 @@ function ParticipantStrip({
             <Text style={stripStyles.name} numberOfLines={1}>
               {p.display_name}
             </Text>
-          </View>
+          </TouchableOpacity>
         ))}
         {overflow > 0 && (
           <View style={stripStyles.item}>
@@ -256,6 +296,7 @@ const stripStyles = StyleSheet.create({
 export default function EventChatScreen() {
   const { id: eventId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, profile, streamToken } = useAuthStore();
   const { coordinates } = useLocationStore();
 
@@ -271,6 +312,11 @@ export default function EventChatScreen() {
 
   const [meetupPoint, setMeetupPoint] = useState<MeetupPoint | null>(null);
   const [participants, setParticipants] = useState<ParticipantSnippet[]>([]);
+
+  // Meetup input modal (Android fallback — iOS uses Alert.prompt)
+  const [meetupModalVisible, setMeetupModalVisible] = useState(false);
+  const [meetupDraft, setMeetupDraft] = useState('');
+  const [isSettingMeetup, setIsSettingMeetup] = useState(false);
 
   // isDeleting: locks the UI during the delete-event Edge Function call
   const [isDeleting, setIsDeleting] = useState(false);
@@ -416,6 +462,58 @@ export default function EventChatScreen() {
     return () => unsubscribe();
   }, [streamChannel]);
 
+  // ── Set meetup point (host only) ────────────────────────────────────────────
+
+  const saveMeetupPoint = useCallback(
+    async (label: string) => {
+      const trimmed = label.trim();
+      if (!trimmed || !streamChannel) return;
+      setIsSettingMeetup(true);
+      try {
+        // Persist to Stream channel custom data — the channel.updated listener
+        // will pick this up and refresh the banner automatically.
+        await streamChannel.updatePartial({
+          set: { meetup_point: { latitude: 0, longitude: 0, label: trimmed } },
+        });
+        // DB persistence — requires migration:
+        // ALTER TABLE events ADD COLUMN meetup_point_label TEXT;
+        await supabase
+          .from('events')
+          .update({ meetup_point_label: trimmed })
+          .eq('id', eventId);
+      } catch (err) {
+        Alert.alert('Error', 'Could not save meetup point. Please try again.');
+      } finally {
+        setIsSettingMeetup(false);
+        setMeetupModalVisible(false);
+      }
+    },
+    [streamChannel, eventId],
+  );
+
+  const handleSetMeetupPoint = useCallback(() => {
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        'Set Meetup Point',
+        'Enter a short description of where to meet.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Set',
+            onPress: (text) => {
+              if (text) saveMeetupPoint(text);
+            },
+          },
+        ],
+        'plain-text',
+        meetupPoint?.label ?? '',
+      );
+    } else {
+      setMeetupDraft(meetupPoint?.label ?? '');
+      setMeetupModalVisible(true);
+    }
+  }, [meetupPoint, saveMeetupPoint]);
+
   // ── Delete event (host only) ────────────────────────────────────────────────
   // Architecture: all event deletions go through the delete-event Edge Function,
   // which syncs Stream.io before removing the DB row. Client never writes DELETE.
@@ -453,20 +551,13 @@ export default function EventChatScreen() {
 
   // ── "..." menu ─────────────────────────────────────────────────────────────
   const handleMenu = useCallback(() => {
-    const isHost =
-      (streamChannel?.data as Record<string, unknown> | undefined)
-        ?.created_by_id === user?.id;
+    const isHost = user?.id === eventHostId;
 
     const actions = isHost
       ? [
           {
-            text: 'Set Meetup Point',
-            onPress: () =>
-              // TODO Phase 4: open map mini-sheet → channel.updatePartial({ set: { meetup_point } })
-              Alert.alert(
-                'Coming Soon',
-                'Setting a meetup point from the app will be available in a future update.',
-              ),
+            text: 'Edit Meetup Point',
+            onPress: handleSetMeetupPoint,
           },
           {
             text: 'Delete Event',
@@ -490,7 +581,7 @@ export default function EventChatScreen() {
       ...actions,
       { text: 'Cancel', style: 'cancel' },
     ]);
-  }, [streamChannel, user?.id, handleDeleteEvent]);
+  }, [user?.id, eventHostId, handleSetMeetupPoint, handleDeleteEvent]);
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (isConnecting) {
@@ -524,20 +615,17 @@ export default function EventChatScreen() {
   // ── Main render ────────────────────────────────────────────────────────────
   //
   // Layout contract:
-  //   SafeAreaView edges={['top','bottom']}
-  //     → adds paddingTop (status bar) + paddingBottom (gesture nav bar)
-  //     → no useSafeAreaInsets hook, no dynamic style objects needed
+  //   SafeAreaView edges={['top']} — handles status bar only.
+  //   KeyboardAvoidingView (behavior='padding' iOS) wraps the chat tree so the
+  //   software keyboard doesn't cover the MessageInput. The `keyboardVerticalOffset`
+  //   is set to `insets.bottom` so it accounts for the gesture nav bar height.
+  //   Stream's Channel also receives keyboardVerticalOffset for its internal handler.
   //
-  //   chatWrapper (flex: 1)
-  //     → gives OverlayProvider / Chat / Channel a defined height to fill
-  //     → without this the Stream components collapse to 0 height and
-  //       MessageInput disappears off the bottom of the screen
-  //
-  //   chatContainer (flex: 1) inside Channel
-  //     → column: ParticipantStrip (natural) | messagesFill (flex:1) | MessageInput (natural)
+  //   chatContainer (flex: 1) inside Channel:
+  //     → column: ParticipantStrip (natural) | messagesFill (flex:1) | MessageInput
   //
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
 
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -575,7 +663,12 @@ export default function EventChatScreen() {
       )}
 
       {/* ── Meetup banner — permanently fixed below header, never scrolls ── */}
-      <MeetupBanner meetupPoint={meetupPoint} userCoords={coordinates} />
+      <MeetupBanner
+        meetupPoint={meetupPoint}
+        userCoords={coordinates}
+        isHost={user?.id === eventHostId}
+        onSetMeetupPoint={handleSetMeetupPoint}
+      />
 
       {/*
        * chatWrapper gives the Stream component tree a bounded flex region.
@@ -585,10 +678,17 @@ export default function EventChatScreen() {
        *
        * TODO Phase 4: move OverlayProvider to app/_layout.tsx.
        */}
-      <View style={styles.chatWrapper}>
+      <KeyboardAvoidingView
+        style={styles.chatWrapper}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={insets.bottom}
+      >
         <OverlayProvider>
-          <Chat client={streamClient}>
-            <Channel channel={streamChannel}>
+          <Chat client={streamClient} style={STREAM_THEME}>
+            <Channel
+              channel={streamChannel}
+              keyboardVerticalOffset={insets.bottom}
+            >
               <View style={styles.chatContainer}>
 
                 {/* ── Participant avatar strip — fixed height row ── */}
@@ -599,37 +699,17 @@ export default function EventChatScreen() {
 
                 {/* ── Message feed — fills remaining vertical space ── */}
                 <View style={styles.messagesFill}>
-                  <MessageList />
+                  <MessageList noGroupByUser />
                 </View>
 
-                {/*
-                 * MessageInput sits naturally at the bottom of the column.
-                 * The SafeAreaView's bottom edge already accounts for the
-                 * gesture nav bar — no extra wrapper or paddingBottom needed.
-                 *
-                 * Stream's internal KeyboardCompatibleView (inside Channel)
-                 * handles the software keyboard independently.
-                 *
-                 * TODO Phase 4: replace with custom InputBox (photo/camera/poll).
-                 */}
+                {/* ── Message input ── TODO Phase 4: replace with custom InputBox */}
                 <MessageInput />
 
               </View>
             </Channel>
           </Chat>
         </OverlayProvider>
-      </View>
-
-      {/* ── Host-only delete button ── */}
-      {user?.id === eventHostId && eventStatus === 'active' && (
-        <Pressable
-          style={[styles.deleteEventBtn, isDeleting && styles.deleteEventBtnDisabled]}
-          onPress={handleDeleteEvent}
-          disabled={isDeleting}
-        >
-          <Text style={styles.deleteEventBtnText}>Delete Event</Text>
-        </Pressable>
-      )}
+      </KeyboardAvoidingView>
 
       {/* ── Deleting overlay — blocks UI while delete-event Edge Function runs ── */}
       {isDeleting && (
@@ -638,6 +718,51 @@ export default function EventChatScreen() {
           <Text style={styles.deletingText}>Deleting event…</Text>
         </View>
       )}
+
+      {/* ── Meetup point input modal (Android + universal fallback) ── */}
+      <Modal
+        visible={meetupModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMeetupModalVisible(false)}
+      >
+        <Pressable
+          style={styles.meetupOverlay}
+          onPress={() => setMeetupModalVisible(false)}
+        />
+        <View style={[styles.meetupSheet, { paddingBottom: insets.bottom + 20 }]}>
+          <Text style={styles.meetupSheetTitle}>Set Meetup Point</Text>
+          <Text style={styles.meetupSheetSubtitle}>
+            Describe where the group should meet up.
+          </Text>
+          <TextInput
+            style={styles.meetupInput}
+            value={meetupDraft}
+            onChangeText={setMeetupDraft}
+            placeholder="e.g. Front entrance of the café"
+            placeholderTextColor={Colors.textTertiary}
+            maxLength={100}
+            autoFocus
+          />
+          <View style={styles.meetupActions}>
+            <Pressable
+              style={styles.meetupCancelBtn}
+              onPress={() => setMeetupModalVisible(false)}
+            >
+              <Text style={styles.meetupCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.meetupConfirmBtn, isSettingMeetup && styles.meetupConfirmBtnDisabled]}
+              onPress={() => saveMeetupPoint(meetupDraft)}
+              disabled={isSettingMeetup}
+            >
+              <Text style={styles.meetupConfirmText}>
+                {isSettingMeetup ? 'Saving…' : 'Set'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -776,20 +901,75 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // ── Host delete button ────────────────────────────────────────
-  deleteEventBtn: {
-    backgroundColor: Colors.errorBackground,
-    borderTopWidth: 1,
-    borderTopColor: Colors.errorBorder,
-    paddingVertical: 16,
+  // ── Meetup point modal ────────────────────────────────────────────────────
+  meetupOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.modalBackdrop,
+  },
+  meetupSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  meetupSheetTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  meetupSheetSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: -4,
+  },
+  meetupInput: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: Colors.textPrimary,
+  },
+  meetupActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  meetupCancelBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
     alignItems: 'center',
   },
-  deleteEventBtnDisabled: {
-    opacity: 0.5,
-  },
-  deleteEventBtnText: {
+  meetupCancelText: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.errorLight,
+    color: Colors.textSecondary,
+  },
+  meetupConfirmBtn: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 10,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+  },
+  meetupConfirmBtnDisabled: {
+    opacity: 0.5,
+  },
+  meetupConfirmText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.white,
   },
 });

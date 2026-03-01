@@ -25,7 +25,7 @@ import MapView, {
 import * as Location from 'expo-location';
 import Supercluster from 'supercluster';
 import { useRouter } from 'expo-router';
-import { Bell, Check, Plus, SlidersHorizontal } from 'lucide-react-native';
+import { Bell, Check, LocateFixed, Plus, SlidersHorizontal } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
@@ -460,6 +460,19 @@ export default function MapScreen() {
     [events],
   );
 
+  const handleRecenter = useCallback(() => {
+    if (!coordinates || !mapRef.current) return;
+    mapRef.current.animateToRegion(
+      {
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        latitudeDelta: 0.04,
+        longitudeDelta: 0.04,
+      },
+      500,
+    );
+  }, [coordinates]);
+
   // ── Marker rendering ──────────────────────────────────────────────────────
 
   const renderedMarkers = useMemo(() => {
@@ -639,14 +652,27 @@ export default function MapScreen() {
        * but hiding is cleaner than fighting elevation stacking on Android.
        */}
       {!selectedEvent && (
-        <Pressable
-          style={styles.fab}
-          onPress={() => router.push('/event/create')}
-          accessibilityLabel="Create event"
-          accessibilityRole="button"
-        >
-          <Plus color={Colors.white} size={28} strokeWidth={2.5} />
-        </Pressable>
+        <>
+          {/* Recenter FAB — snaps map back to current GPS position */}
+          <Pressable
+            style={styles.recenterFab}
+            onPress={handleRecenter}
+            accessibilityLabel="Recenter map"
+            accessibilityRole="button"
+          >
+            <LocateFixed color={Colors.textPrimary} size={20} strokeWidth={2} />
+          </Pressable>
+
+          {/* Create event FAB */}
+          <Pressable
+            style={styles.fab}
+            onPress={() => router.push('/event/create')}
+            accessibilityLabel="Create event"
+            accessibilityRole="button"
+          >
+            <Plus color={Colors.white} size={28} strokeWidth={2.5} />
+          </Pressable>
+        </>
       )}
 
       {/* ── Filter Modal ── */}
@@ -811,7 +837,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // FAB — z-index: rendered conditionally (hidden when EventCard sheet is open)
+  // Recenter FAB — sits above the create FAB
+  recenterFab: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 188 : 168,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: Colors.background,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+
+  // Create FAB — z-index: rendered conditionally (hidden when EventCard sheet is open)
   fab: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 116 : 96,
