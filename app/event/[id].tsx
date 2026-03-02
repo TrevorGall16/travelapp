@@ -21,7 +21,6 @@ import {
   Chat,
   MessageInput,
   MessageList,
-  OverlayProvider,
 } from 'stream-chat-expo';
 import type { Channel as StreamChannel } from 'stream-chat';
 
@@ -120,6 +119,11 @@ export default function EventChatScreen() {
   const [isJoining, setIsJoining] = useState(false);
 
   const channelRef = useRef<StreamChannel | null>(null);
+
+  // Screen-relative Y position of the KAV container, measured on layout.
+  // Used as keyboardVerticalOffset so KAV knows how far below the screen top it sits.
+  // Computed dynamically because the banners above it are conditional.
+  const [chatTopOffset, setChatTopOffset] = useState(0);
 
   const isHost = user?.id === eventHostId;
 
@@ -448,15 +452,11 @@ export default function EventChatScreen() {
 
 // ── Main render ────────────────────────────────────────────────────────────
   return (
-    // 1. OverlayProvider MUST be the absolute root so its attachment menus never get squished
-    <OverlayProvider>
-      {/* 2. KeyboardAvoidingView handles the custom Android keyboard */}
-      <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: Colors.background }}
-        behavior="padding"
-      >
-        {/* 3. insets.bottom prevents the gap when closed, KeyboardAvoidingView pushes it up when open */}
-        <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}>
+    // softwareKeyboardLayoutMode="resize" (app.config.js) makes Android shrink the window
+    // when the keyboard opens. Stream's KeyboardCompatibleView then anchors MessageInput
+    // correctly. No KAV needed — it would fight the OS resize and misplace overlays.
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}>
 
         {/* ── Header ── */}
         <View style={styles.header}>
@@ -529,18 +529,41 @@ export default function EventChatScreen() {
         )}
 
         {/* ── Stream chat ── */}
-        <View style={{ flex: 1 }}>
+        {/*
+         * onLayout fires whenever this View's position changes (banner show/hide).
+         * e.nativeEvent.layout.y is relative to the paddingTop View, so adding
+         * insets.top gives the true screen-relative Y — the correct KAV offset.
+         */}
+        <View
+          style={{ flex: 1 }}
+          onLayout={(e) => setChatTopOffset(insets.top + e.nativeEvent.layout.y)}
+        >
           <Chat client={streamClient} style={STREAM_THEME}>
-            {/* 4. Disable Stream's math so it doesn't fight KeyboardAvoidingView */}
+            {/*
+             * disableKeyboardCompatibleView: Stream's built-in KeyboardCompatibleView
+             * is disabled because we own the KAV inside. The two must not coexist.
+             */}
             <Channel channel={streamChannel} disableKeyboardCompatibleView={true}>
+              {/*
+               * KAV lives here — below the header/banners, above MessageInput.
+               * behavior='height' shrinks the KAV itself rather than adding padding,
+               * which is more reliable than 'padding' when resize mode is unreliable.
+               * keyboardVerticalOffset = screen-relative Y of this container so RN's
+               * KAV math correctly accounts for all content above it.
+               */}
+              <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={chatTopOffset}
+              >
+                <View style={{ flex: 1, marginBottom: 16 }}>
+                  <MessageList noGroupByUser />
+                </View>
 
-              <View style={{ flex: 1, marginBottom: 16 }}>
-                <MessageList noGroupByUser />
-              </View>
-
-              {(isParticipant || isHost) && (
-                <MessageInput />
-              )}
+                {(isParticipant || isHost) && (
+                  <MessageInput />
+                )}
+              </KeyboardAvoidingView>
 
             </Channel>
           </Chat>
@@ -589,8 +612,7 @@ export default function EventChatScreen() {
           onNavigateToUser={(userId) => router.push(`/user/${userId}`)}
         />
 
-        </View>
-      </KeyboardAvoidingView>
-    </OverlayProvider>
+      </View>
+    </View>
   );
 }

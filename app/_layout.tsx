@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { OverlayProvider } from 'stream-chat-expo';
 import { Colors } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
@@ -159,6 +160,11 @@ if (session?.user) {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={styles.flex}>
+        {/* OverlayProvider must live here — above every screen and every KAV —
+            so that Stream's gorhom/bottom-sheet snap-point math always operates
+            against the full hardware screen. Placing it inside any screen's KAV
+            causes the "ghost drag handle" bug when the keyboard closes. */}
+        <OverlayProvider>
         {!isInitialized ? (
           <View style={styles.splash} />
         ) : (
@@ -177,6 +183,7 @@ if (session?.user) {
             <Stack.Screen name="notifications" />
           </Stack>
         )}
+        </OverlayProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
