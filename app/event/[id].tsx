@@ -557,12 +557,16 @@ export default function EventChatScreen() {
         return 0;
       });
 
-  // ── Main render ────────────────────────────────────────────────────────────
+ // ── Main render ────────────────────────────────────────────────────────────
   return (
     // Brute-force inset padding: works in Expo Go / Dev Client where native nav bar
     // config overrides are ignored. paddingTop clears the notch/status bar on all
     // platforms; paddingBottom on the input bumper clears the home indicator / nav bar.
-    <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: Colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}>
 
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -637,18 +641,22 @@ export default function EventChatScreen() {
         </View>
       )}
 
-      {/* ── Stream chat ── */}
-<View style={{ flex: 1, paddingBottom: insets.bottom }}>
+{/* ── Stream chat ── */}
+      <View style={{ flex: 1 }}>
         <OverlayProvider>
           <Chat client={streamClient} style={STREAM_THEME}>
-            {/* Let Stream handle the keyboard and layouts naturally */}
-            <Channel channel={streamChannel}>
-              <MessageList noGroupByUser />
+            {/* disableKeyboardCompatibleView stops Stream from fighting our native KeyboardAvoidingView */}
+            <Channel channel={streamChannel} disableKeyboardCompatibleView={true}>
               
-              {/* Only show input if they are a participant or host */}
+              {/* flex: 1 pushes the input to the bottom, marginBottom 28 creates a larger visual gap */}
+              <View style={{ flex: 1, marginBottom: 28 }}>
+                <MessageList noGroupByUser />
+              </View>
+
               {(isParticipant || isHost) && (
                 <MessageInput />
               )}
+              
             </Channel>
           </Chat>
         </OverlayProvider>
@@ -887,9 +895,11 @@ export default function EventChatScreen() {
         </View>
       </Modal>
 
-    </View>
+</View>
+    </KeyboardAvoidingView>
   );
 }
+
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
