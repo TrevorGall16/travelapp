@@ -149,10 +149,35 @@ const bannerStyles = StyleSheet.create({
   },
 });
 
+// ─── Mock Testing Data ───────────────────────────────────────────────────────
+// Activated when eventId === "test-paris". Bypasses all Supabase fetching.
+// Stream Chat connects to the "paris-sandbox" public channel instead.
+
+const MOCK_EVENT_ID = 'test-paris';
+const MOCK_STREAM_CHANNEL = 'paris-sandbox';
+
+const MOCK_STATE = {
+  title: 'The Paris Testing Ground 🇫🇷',
+  description: 'This is a hardcoded event for UI testing. None of this is in the database.',
+  participantCount: 4,
+  maxParticipants: 20,
+  hostId: 'mock-host-marco',
+  meetupPoint: { label: 'Châtelet Metro Station, Exit 11' },
+};
+
+// Fake members — IDs are stable so profile navigation can be tested
+const MOCK_MEMBERS = [
+  { user_id: 'mock-host-marco', display_name: 'Marco the Explorer', image: null as string | null },
+  { user_id: 'mock-user-sarah',   display_name: 'Sarah (France)',     image: null as string | null },
+  { user_id: 'mock-user-hiroshi', display_name: 'Hiroshi (Japan)',    image: null as string | null },
+  { user_id: 'mock-user-elena',   display_name: 'Elena (Italy)',      image: null as string | null },
+];
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function EventChatScreen() {
   const { id: eventId } = useLocalSearchParams<{ id: string }>();
+  const isMockEvent = eventId === MOCK_EVENT_ID;
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -241,6 +266,47 @@ export default function EventChatScreen() {
 
     const setup = async () => {
       console.log('[EventChat] setup() start → eventId:', eventId, '| userID:', user.id);
+
+      // ── MOCK MODE: bypass Supabase entirely ────────────────────────────────
+      if (isMockEvent) {
+        if (!cancelled) {
+          setEventTitle(MOCK_STATE.title);
+          setParticipantCount(MOCK_STATE.participantCount);
+          setMaxParticipants(MOCK_STATE.maxParticipants);
+          setEventStatus('active');
+          setEventHostId(MOCK_STATE.hostId);
+          setIsFull(false);
+          setIsParticipant(true);   // always "in" so MessageInput is visible
+          setMeetupPoint(MOCK_STATE.meetupPoint);
+        }
+
+        // Still connect to a real Stream channel so the MessageInput actually works
+        try {
+          if (!streamClient.userID) {
+            await streamClient.connectUser(
+              { id: user.id, name: profile.display_name, image: profile.avatar_url },
+              streamToken,
+            );
+          }
+          if (cancelled) return;
+
+          const ch = streamClient.channel('messaging', MOCK_STREAM_CHANNEL);
+          await ch.watch();
+
+          if (cancelled) { ch.stopWatching().catch(() => {}); return; }
+          channelRef.current = ch;
+          setStreamChannel(ch);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn('[EventChat] Mock mode: Stream connection failed:', msg);
+          setConnectError(`Stream error (mock mode): ${msg}`);
+        } finally {
+          if (!cancelled) setIsConnecting(false);
+        }
+        return; // skip real Supabase path
+      }
+      // ── END MOCK MODE ──────────────────────────────────────────────────────
+
       try {
         // 1. Fetch event metadata
         const { data: eventData, error: eventError } = await supabase
@@ -249,10 +315,11 @@ export default function EventChatScreen() {
           .eq('id', eventId)
           .single();
 
-        if (eventError || !eventData) {
-          if (!cancelled) setConnectError('Event not found.');
-          return;
-        }
+   if (eventError || !eventData) {
+  console.error('[EventChat] DB ERROR:', eventError);
+  if (!cancelled) setConnectError(`DB Error: ${eventError?.message || 'No data returned'}`);
+  return;
+}
 
         if (!cancelled) {
           setEventTitle(eventData.title);
@@ -283,7 +350,7 @@ export default function EventChatScreen() {
         if (cancelled) return;
 
         // 3. Watch the channel — makes it "live", populates channel.data + state.members
-        const ch = streamClient.channel('messaging', `event_${eventId}`);
+        const ch = streamClient.channel('messaging', eventId);
         await ch.watch();
 
         if (cancelled) {
@@ -454,7 +521,7 @@ export default function EventChatScreen() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (isConnecting) {
     return (
-      <View style={{ height: windowHeight, backgroundColor: Colors.background, paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Connecting to chat…</Text>
@@ -466,7 +533,7 @@ export default function EventChatScreen() {
   // ── Error ──────────────────────────────────────────────────────────────────
   if (connectError || !streamChannel) {
     return (
-      <View style={{ height: windowHeight, backgroundColor: Colors.background, paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
           <Text style={styles.errorLabel}>⚠️ Connection Failed</Text>
           <Text style={styles.errorText}>
@@ -481,18 +548,21 @@ export default function EventChatScreen() {
   }
 
   // ── Members list: host pinned first, then rest ─────────────────────────────
-  const sortedMembers = Object.values(streamChannel.state.members).sort((a, b) => {
-    if (a.user?.id === eventHostId) return -1;
-    if (b.user?.id === eventHostId) return 1;
-    return 0;
-  });
+  // In mock mode use MOCK_MEMBERS directly — the sandbox channel has no real members.
+  const sortedMembers = isMockEvent
+    ? MOCK_MEMBERS.map(m => ({ user: { id: m.user_id, name: m.display_name, image: m.image }, user_id: m.user_id }))
+    : Object.values(streamChannel.state.members).sort((a, b) => {
+        if (a.user?.id === eventHostId) return -1;
+        if (b.user?.id === eventHostId) return 1;
+        return 0;
+      });
 
   // ── Main render ────────────────────────────────────────────────────────────
   return (
     // Brute-force inset padding: works in Expo Go / Dev Client where native nav bar
     // config overrides are ignored. paddingTop clears the notch/status bar on all
     // platforms; paddingBottom on the input bumper clears the home indicator / nav bar.
-    <View style={{ height: windowHeight, backgroundColor: Colors.background, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
 
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -568,27 +638,21 @@ export default function EventChatScreen() {
       )}
 
       {/* ── Stream chat ── */}
-      <OverlayProvider>
-        <Chat client={streamClient} style={STREAM_THEME}>
-          <Channel channel={streamChannel} disableKeyboardCompatibleView>
-            {/* Message list fills remaining space; marginBottom keeps bubbles off the input */}
-            <View style={{ flex: 1, marginBottom: 16 }}>
+<View style={{ flex: 1, paddingBottom: insets.bottom }}>
+        <OverlayProvider>
+          <Chat client={streamClient} style={STREAM_THEME}>
+            {/* Let Stream handle the keyboard and layouts naturally */}
+            <Channel channel={streamChannel}>
               <MessageList noGroupByUser />
-            </View>
-
-            {/* MessageInput only for participants and host — non-members get a read-only view */}
-            {(isParticipant || isHost) ? (
-              /* TODO Phase 4: replace with custom InputBox (photo/camera/poll) */
-              <View style={{ paddingBottom: bottomBumper }}>
+              
+              {/* Only show input if they are a participant or host */}
+              {(isParticipant || isHost) && (
                 <MessageInput />
-              </View>
-            ) : (
-              /* Nudge for non-members: mirrors the join bar padding so layout is stable */
-              <View style={{ paddingBottom: bottomBumper }} />
-            )}
-          </Channel>
-        </Chat>
-      </OverlayProvider>
+              )}
+            </Channel>
+          </Chat>
+        </OverlayProvider>
+      </View>
 
       {/* ── Deleting overlay ── */}
       {isDeleting && (

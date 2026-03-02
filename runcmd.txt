@@ -9,8 +9,10 @@ If that returns an error like device not found, your USB cable is loose or "USB 
 If adb reverse doesn't fix it instantly, the ADB server itself has crashed. Run this sequence in your terminal:
 
 PowerShell
+
 adb kill-server
 adb start-server
+
 adb reverse tcp:8081 tcp:8081
 3. Verification
 Once you run those, go back to your phone and Shake the device to ope

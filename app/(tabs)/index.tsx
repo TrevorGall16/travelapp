@@ -84,9 +84,63 @@ function regionToZoom(longitudeDelta: number): number {
   return Math.max(0, Math.min(20, Math.round(Math.log2(360 / longitudeDelta))));
 }
 
-/** Maps a raw DBEvent row to a parsed Event. Returns null if coords are invalid. */
+/**
+ * Parses a PostGIS EWKB hex string into [longitude, latitude].
+ *
+ * Realtime `postgres_changes` payloads deliver geography/geometry columns as
+ * raw EWKB hex (e.g. "0101000020E6100000...") rather than GeoJSON, so we
+ * decode it here using a pure DataView approach (no Node.js Buffer needed).
+ *
+ * EWKB little-endian layout:
+ *   [1 byte]  byte-order flag  (0x01 = LE)
+ *   [4 bytes] type (Point = 1, with optional SRID flag 0x20000000)
+ *   [4 bytes] SRID (only present when SRID flag is set)
+ *   [8 bytes] X / longitude (IEEE-754 double)
+ *   [8 bytes] Y / latitude  (IEEE-754 double)
+ */
+function parseWKBHex(hex: string): [number, number] | null {
+  try {
+    if (!hex || hex.length < 42) return null;
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+      bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+    }
+    const view = new DataView(bytes.buffer);
+    const le = bytes[0] === 0x01;     // little-endian?
+    const typeRaw = view.getUint32(1, le);
+    const hasSRID = (typeRaw & 0x20000000) !== 0;
+    const coordOffset = 1 + 4 + (hasSRID ? 4 : 0);
+    const lng = view.getFloat64(coordOffset,     le);
+    const lat = view.getFloat64(coordOffset + 8, le);
+    return [lng, lat];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Maps a raw DBEvent row to a parsed Event.
+ *
+ * Handles two `location` shapes:
+ *   1. GeoJSON object `{ type: 'Point', coordinates: [lng, lat] }` — from RPC/REST
+ *   2. EWKB hex string                                              — from Realtime
+ *
+ * Returns null if coordinates are missing or non-finite.
+ */
 function dbEventToEvent(row: DBEvent): Event | null {
-  const [longitude, latitude] = row.location.coordinates;
+  let longitude: number;
+  let latitude: number;
+
+  if (typeof row.location === 'string') {
+    // Realtime path — EWKB hex
+    const coords = parseWKBHex(row.location);
+    if (!coords) return null;
+    [longitude, latitude] = coords;
+  } else {
+    // RPC / REST path — GeoJSON object
+    [longitude, latitude] = row.location.coordinates;
+  }
+
   if (!isFinite(latitude) || !isFinite(longitude)) return null;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { location: _loc, ...rest } = row;
@@ -154,7 +208,7 @@ export default function MapScreen() {
 
   // Stable supercluster instance — recreated only when component mounts.
   const sc = useRef(
-    new Supercluster<PinProperties>({ radius: 60, maxZoom: 20 }),
+    new Supercluster<PinProperties>({ radius: 6000, maxZoom: 20 }),
   );
 
   // ── RPC fetch ──────────────────────────────────────────────────────────────

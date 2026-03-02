@@ -87,15 +87,17 @@ export default function RootLayout() {
       async (event, session) => {
         if (!isMounted) return;
 
-        if (session?.user) {
-          setUser(session.user);
-
+if (session?.user) {
+          // 1. Fetch the profile FIRST before updating the store
           const profileData = await fetchProfile(session.user.id);
+          
           if (!isMounted) return;
+
+          // 2. Set both together so the UI doesn't "blink"
+          setUser(session.user);
           setProfile(profileData);
 
-          // Only fetch Stream token for users who have completed setup.
-          // New users (setup_completed = false) don't need it yet.
+          // 3. Only fetch Stream token if they are actually done with setup
           if (isProfileComplete(profileData) && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
             await fetchStreamToken();
           }

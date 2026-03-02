@@ -33,18 +33,26 @@ export type EventCategory =
 
 export type EventStatus = 'active' | 'expired';
 
-/** Raw row returned by the `get_nearby_events` RPC.
- *  The PostGIS `location` column comes back as a GeoJSON Point object. */
+/** Raw row returned by the `get_nearby_events` RPC or a Realtime change payload.
+ *
+ * `location` is a union because the two sources serialize differently:
+ *   - RPC / REST select: PostgREST casts PostGIS geography → GeoJSON object
+ *   - Realtime (postgres_changes): delivers the raw EWKB hex string
+ *
+ * Use `parseDBEventLocation()` in the map screen to handle both shapes. */
 export interface DBEvent {
   id: string;
   host_id: string;
   title: string;
   description: string | null;
   category: EventCategory;
-  location: { type: 'Point'; coordinates: [number, number] }; // [lng, lat]
+  location:
+    | { type: 'Point'; coordinates: [number, number] } // [lng, lat] — from RPC/REST
+    | string;                                           // EWKB hex   — from Realtime
   status: EventStatus;
   verified_only: boolean;
   participant_count: number;
+  max_participants: number | null;
   expires_at: string;
   maps_taps: number;
   arrivals: number;
