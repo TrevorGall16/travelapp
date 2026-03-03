@@ -463,10 +463,8 @@ export default function EventChatScreen() {
 
 // ── Main render ────────────────────────────────────────────────────────────
 return (
-  <OverlayProvider>
-    {/* 1. Root wrapper is a plain View. 
-      KeyboardAvoidingView at the root level breaks Stream's BottomSheet math.
-    */}
+    // OverlayProvider lives in app/_layout.tsx — do NOT nest it here.
+    // Root wrapper is a plain View; KAV at root level breaks Stream's BottomSheet math.
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
       {/* 2. Dynamic padding: 
         If keyboard is open, we set padding to 0 so the internal KAV can sit flush.
@@ -615,6 +613,5 @@ return (
 
       </View>
     </View>
-  </OverlayProvider>
 );
 }

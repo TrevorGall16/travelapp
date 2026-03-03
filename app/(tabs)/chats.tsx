@@ -52,7 +52,8 @@ function EventChannelPreview(props: ChannelPreviewUIComponentProps) {
   const router = useRouter();
   const { channel, latestMessagePreview, unreadCount } = props;
 
-  const eventId = (channel.id ?? '').replace(/^event_/, '');
+  const rawId = channel.id ?? '';
+  const eventId = rawId.startsWith('event_') ? rawId.slice('event_'.length) : rawId;
   const channelName = (channel.data?.name as string | undefined) ?? 'Event Chat';
   const avatarUrl = channel.data?.image as string | undefined;
 
@@ -71,7 +72,7 @@ function EventChannelPreview(props: ChannelPreviewUIComponentProps) {
   return (
     <Pressable
       style={({ pressed }) => [rowStyles.row, pressed && rowStyles.rowPressed]}
-      onPress={() => router.push(`/event/${eventId}`)}
+      onPress={() => eventId && router.push(`/event/${eventId}`)}
       accessibilityRole="button"
       accessibilityLabel={`Open ${channelName} chat`}
     >

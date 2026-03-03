@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
 // Deep-link scheme configured in app.json → expo.scheme
@@ -26,6 +27,7 @@ const DEV_EMAIL = 'testuser1@gmail.com';
 const DEV_PASSWORD = 'password123';
 
 export default function LoginScreen() {
+  const insets = useSafeAreaInsets();
   const [isSubmittingApple, setIsSubmittingApple] = useState(false);
   const [isSubmittingGoogle, setIsSubmittingGoogle] = useState(false);
   const [isSubmittingDev, setIsSubmittingDev] = useState(false);
@@ -121,7 +123,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
@@ -227,8 +229,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 52,
   },
   hero: {
     flex: 1,

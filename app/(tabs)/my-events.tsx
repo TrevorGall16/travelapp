@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -133,6 +133,12 @@ export default function MyEventsScreen() {
   const [activeEvents, setActiveEvents] = useState<EventRow[]>([]);
   const [pastEvents, setPastEvents] = useState<EventRow[]>([]);
 
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
   // ── Data fetch ───────────────────────────────────────────────────────────
 
   const fetchMyEvents = useCallback(async () => {
@@ -148,6 +154,7 @@ export default function MyEventsScreen() {
       if (partError) throw partError;
 
       if (!participantRows || participantRows.length === 0) {
+        if (!isMountedRef.current) return;
         setActiveEvents([]);
         setPastEvents([]);
         return;
@@ -162,12 +169,12 @@ export default function MyEventsScreen() {
         .from('events')
         .select('id, title, category, status, expires_at, host_id, participant_count')
         .in('id', eventIds)
-        .gte('expires_at', new Date().toISOString())
         .order('expires_at', { ascending: true });
 
       if (eventError) throw eventError;
 
       if (!eventRows || eventRows.length === 0) {
+        if (!isMountedRef.current) return;
         setActiveEvents([]);
         setPastEvents([]);
         return;
@@ -208,13 +215,16 @@ export default function MyEventsScreen() {
 
       // Active: soonest expiry first (already ordered by DB query).
       // Past: flip to most-recently-ended first.
+      if (!isMountedRef.current) return;
       setActiveEvents(combined.filter((e) => e.status === 'active'));
       setPastEvents(combined.filter((e) => e.status === 'expired').reverse());
     } catch (err) {
       console.error('[MyEvents] fetch error:', err);
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, [user]);
 

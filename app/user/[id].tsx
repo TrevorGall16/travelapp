@@ -36,6 +36,8 @@ export default function UserProfileScreen() {
   useEffect(() => {
     if (!id) { setNotFound(true); setIsLoading(false); return; }
 
+    let isMounted = true;
+
     const fetchProfile = async () => {
       const { data, error } = await supabase
         .from('profiles')
@@ -46,6 +48,8 @@ export default function UserProfileScreen() {
         .eq('id', id)
         .single();
 
+      if (!isMounted) return;
+
       if (error || !data) {
         setNotFound(true);
       } else {
@@ -55,6 +59,7 @@ export default function UserProfileScreen() {
     };
 
     fetchProfile();
+    return () => { isMounted = false; };
   }, [id]);
 
   // ── Derived display data ────────────────────────────────────────────────────

@@ -10,7 +10,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -35,6 +34,14 @@ import EventCard from '../../components/map/EventCard';
 import { Colors } from '../../constants/theme';
 import type { DBEvent, Event, EventCategory } from '../../types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import {
+  haversineMeters,
+  dbEventToEvent,
+  eventsToGeoFeatures,
+  type PinProperties,
+  type ClusterOutput,
+} from '../../lib/mapGeo';
+import { styles } from '../../styles/mapScreenStyles';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,127 +65,6 @@ const CATEGORY_EMOJI: Record<EventCategory, string> = {
   culture: '🎭',
   other: '📍',
 };
-
-// ─── Geo utilities ────────────────────────────────────────────────────────────
-
-/** Haversine distance between two lat/lon points, in metres. */
-function haversineMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6_371_000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-/** Converts a map region's longitudeDelta to an integer zoom level [0–20]. */
-function regionToZoom(longitudeDelta: number): number {
-  if (longitudeDelta <= 0) return 15;
-  return Math.max(0, Math.min(20, Math.round(Math.log2(360 / longitudeDelta))));
-}
-
-/**
- * Parses a PostGIS EWKB hex string into [longitude, latitude].
- *
- * Realtime `postgres_changes` payloads deliver geography/geometry columns as
- * raw EWKB hex (e.g. "0101000020E6100000...") rather than GeoJSON, so we
- * decode it here using a pure DataView approach (no Node.js Buffer needed).
- *
- * EWKB little-endian layout:
- *   [1 byte]  byte-order flag  (0x01 = LE)
- *   [4 bytes] type (Point = 1, with optional SRID flag 0x20000000)
- *   [4 bytes] SRID (only present when SRID flag is set)
- *   [8 bytes] X / longitude (IEEE-754 double)
- *   [8 bytes] Y / latitude  (IEEE-754 double)
- */
-function parseWKBHex(hex: string): [number, number] | null {
-  try {
-    if (!hex || hex.length < 42) return null;
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < hex.length; i += 2) {
-      bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
-    }
-    const view = new DataView(bytes.buffer);
-    const le = bytes[0] === 0x01;     // little-endian?
-    const typeRaw = view.getUint32(1, le);
-    const hasSRID = (typeRaw & 0x20000000) !== 0;
-    const coordOffset = 1 + 4 + (hasSRID ? 4 : 0);
-    const lng = view.getFloat64(coordOffset,     le);
-    const lat = view.getFloat64(coordOffset + 8, le);
-    return [lng, lat];
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Maps a raw DBEvent row to a parsed Event.
- *
- * Handles two `location` shapes:
- *   1. GeoJSON object `{ type: 'Point', coordinates: [lng, lat] }` — from RPC/REST
- *   2. EWKB hex string                                              — from Realtime
- *
- * Returns null if coordinates are missing or non-finite.
- */
-function dbEventToEvent(row: DBEvent): Event | null {
-  let longitude: number;
-  let latitude: number;
-
-  if (typeof row.location === 'string') {
-    // Realtime path — EWKB hex
-    const coords = parseWKBHex(row.location);
-    if (!coords) return null;
-    [longitude, latitude] = coords;
-  } else {
-    // RPC / REST path — GeoJSON object
-    [longitude, latitude] = row.location.coordinates;
-  }
-
-  if (!isFinite(latitude) || !isFinite(longitude)) return null;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { location: _loc, ...rest } = row;
-  return { ...rest, latitude, longitude };
-}
-
-// ─── Supercluster types ────────────────────────────────────────────────────────
-
-interface PinProperties {
-  eventId: string;
-  category: EventCategory;
-  title: string;
-  participantCount: number;
-  expiresAt: string;
-  // TODO: join with profiles to populate once host verification is exposed by RPC
-  hostVerified: boolean;
-}
-
-type ClusterOutput =
-  | Supercluster.ClusterFeature<Supercluster.AnyProps>
-  | Supercluster.PointFeature<PinProperties>;
-
-function eventsToGeoFeatures(
-  events: Event[],
-): Supercluster.PointFeature<PinProperties>[] {
-  return events.map((e) => ({
-    type: 'Feature',
-    geometry: { type: 'Point', coordinates: [e.longitude, e.latitude] },
-    properties: {
-      eventId: e.id,
-      category: e.category,
-      title: e.title,
-      participantCount: e.participant_count,
-      expiresAt: e.expires_at,
-      hostVerified: false,
-    },
-  }));
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -266,7 +152,7 @@ export default function MapScreen() {
         return;
       }
 
-      const zoom = regionToZoom(longitudeDelta);
+      const zoom = Math.max(0, Math.min(20, Math.round(Math.log2(360 / longitudeDelta))));
       const bbox: [number, number, number, number] = [
         longitude - longitudeDelta / 2,
         latitude - latitudeDelta / 2,
@@ -774,248 +660,3 @@ export default function MapScreen() {
     </View>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: Colors.background },
-  centeredFill: { justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 },
-  map: { flex: 1 },
-
-  // Map header bar
-  mapHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    zIndex: 20,
-  },
-  mapHeaderSpacer: {
-    flex: 1,
-  },
-  appName: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    letterSpacing: 0.4,
-  },
-  mapHeaderActions: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 4,
-  },
-  iconBtn: {
-    padding: 8,
-  },
-
-  // Cluster bubble
-  clusterMarker: {
-    backgroundColor: Colors.accent,
-    borderRadius: 24,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.white,
-    shadowColor: Colors.background,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  clusterCount: {
-    color: Colors.white,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-
-  // Individual pin (teardrop: circle body + triangular tail)
-  pinContainer: {
-    alignItems: 'center',
-  },
-  pinVerifiedRing: {
-    borderRadius: 28,
-    borderWidth: 2.5,
-    borderColor: Colors.accent,
-    padding: 2,
-  },
-  pinBody: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: Colors.background,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  pinEmoji: { fontSize: 22 },
-  pinTail: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 10,
-    borderLeftColor: Colors.transparent,
-    borderRightColor: Colors.transparent,
-    borderTopColor: Colors.surface,
-    marginTop: -1,
-  },
-
-  // Empty state — sits just below the map header, well above the FAB
-  emptyBanner: {
-    position: 'absolute',
-    top: 100,
-    alignSelf: 'center',
-    backgroundColor: Colors.overlayStrong,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  emptyText: {
-    color: Colors.textSecondary,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-
-  // Recenter FAB — sits above the create FAB
-  recenterFab: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 188 : 168,
-    right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: Colors.background,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 6,
-  },
-
-  // Create FAB — z-index: rendered conditionally (hidden when EventCard sheet is open)
-  fab: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 116 : 96,
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-
-  // Permission denied
-  permissionText: {
-    color: Colors.textSecondary,
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 26,
-  },
-  permissionBtn: {
-    backgroundColor: Colors.accent,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  permissionBtnText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-
-  // Custom user location dot (replaces native showsUserLocation)
-  userDotOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.accentSubtle,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  userDotInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: Colors.accent,
-    borderWidth: 2,
-    borderColor: Colors.white,
-  },
-
-  // ── Filter Modal ──────────────────────────────────────────────
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  filterSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-  },
-  filterHandle: {
-    width: 36,
-    height: 4,
-    backgroundColor: Colors.border,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  filterTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
-  },
-  filterRowActive: {
-    // No background change — checkmark + accent text convey selection
-  },
-  filterRowLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.textPrimary,
-  },
-  filterRowLabelActive: {
-    color: Colors.accent,
-    fontWeight: '600',
-  },
-});
