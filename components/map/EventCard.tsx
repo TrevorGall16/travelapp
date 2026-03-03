@@ -251,11 +251,27 @@ export default function EventCard({ event, onDismiss }: Props) {
     // ── Join flow ──
     setIsJoining(true);
     try {
-      const { data, error } = await supabase.functions.invoke('join-event', {
-        body: { event_id: displayEvent.id },
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        Alert.alert('Session Error', 'Please log in again.');
+        return;
+      }
+
+      const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/join-event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+        },
+        body: JSON.stringify({ event_id: displayEvent.id }),
       });
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`SERVER SAID: ${data.error || JSON.stringify(data)}`);
+      }
 
       if (data?.code === 'EVENT_EXPIRED') {
         Alert.alert('Event Ended', 'This event has already expired.');
@@ -276,10 +292,7 @@ export default function EventCard({ event, onDismiss }: Props) {
       slideOut(onDismiss);
       setTimeout(() => router.push(`/event/${targetId}`), 300);
     } catch (err) {
-      Alert.alert(
-        'Error',
-        err instanceof Error ? err.message : 'Failed to join. Please try again.',
-      );
+      Alert.alert('The Real Error', err instanceof Error ? err.message : String(err));
     } finally {
       setIsJoining(false);
     }

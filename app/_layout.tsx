@@ -56,10 +56,12 @@ export default function RootLayout() {
       return data;
     };
 
-    const fetchStreamToken = async () => {
+    const fetchStreamToken = async (accessToken: string) => {
       console.log('[Stream] fetchStreamToken → invoking generate-stream-token...');
       try {
-        const { data, error } = await supabase.functions.invoke('generate-stream-token');
+        const { data, error } = await supabase.functions.invoke('generate-stream-token', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
 
         console.log(
           '[Stream] generate-stream-token raw response →',
@@ -98,9 +100,12 @@ if (session?.user) {
           setUser(session.user);
           setProfile(profileData);
 
-          // 3. Only fetch Stream token if they are actually done with setup
+          // 3. Only fetch Stream token if they are actually done with setup.
+          // Pass the live access_token directly — avoids the race where
+          // getSession() could still return the previous user's token on
+          // a fast account-switch.
           if (isProfileComplete(profileData) && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
-            await fetchStreamToken();
+            await fetchStreamToken(session.access_token);
           }
         } else {
           clearAuth();

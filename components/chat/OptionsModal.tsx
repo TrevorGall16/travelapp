@@ -7,18 +7,22 @@ interface OptionsModalProps {
   visible: boolean;
   onClose: () => void;
   isHost: boolean;
+  isParticipant: boolean;
   insetsBottom: number;
   onSetMeetupPoint: () => void;
   onDeleteEvent: () => void;
+  onLeaveEvent: () => void;
 }
 
 export function OptionsModal({
   visible,
   onClose,
   isHost,
+  isParticipant,
   insetsBottom,
   onSetMeetupPoint,
   onDeleteEvent,
+  onLeaveEvent,
 }: OptionsModalProps) {
   return (
     <Modal
@@ -71,6 +75,23 @@ export function OptionsModal({
           </>
         ) : (
           <>
+            {isParticipant && (
+              <>
+                <Pressable
+                  style={styles.optionRow}
+                  onPress={() => {
+                    onClose();
+                    setTimeout(onLeaveEvent, 300);
+                  }}
+                >
+                  <Text style={[styles.optionText, styles.optionDestructive]}>
+                    Leave Event
+                  </Text>
+                </Pressable>
+                <View style={styles.optionDivider} />
+              </>
+            )}
+
             <Pressable
               style={styles.optionRow}
               onPress={() => {

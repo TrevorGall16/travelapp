@@ -120,6 +120,8 @@ export default function EventChatScreen() {
 
   // isDeleting: locks the UI during the delete-event Edge Function call
   const [isDeleting, setIsDeleting] = useState(false);
+  // isLeaving: locks the UI during the leave-event Edge Function call
+  const [isLeaving, setIsLeaving] = useState(false);
 
   // isParticipant: true if the current user is already a member of this event's Stream channel
   const [isParticipant, setIsParticipant] = useState(false);
@@ -361,8 +363,24 @@ export default function EventChatScreen() {
     if (!user || !eventId) return;
     setIsJoining(true);
     try {
+      // Always fetch a live session token. Do NOT rely on supabase.functions.invoke
+      // auto-injecting the auth header — the FunctionsClient is constructed once
+      // at app start with the anon key and its static headers are NOT updated when
+      // the session changes (account switch, sign-out/sign-in). Passing the token
+      // explicitly as an override header is the only reliable approach.
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // ── DEBUG ─────────────────────────────────────────────────────────────
+      if (!session) {
+        Alert.alert('SESSION IS NULL - FIX AUTH PERSISTENCE', 'supabase.auth.getSession() returned null.\nUser is not authenticated.');
+        return;
+      }
+      Alert.alert('DEBUG DATA', `Token Start: ${session?.access_token?.substring(0, 15)}\nUser ID: ${session?.user?.id}`);
+      // ── END DEBUG ──────────────────────────────────────────────────────────
+
       const { data, error } = await supabase.functions.invoke('join-event', {
         body: { event_id: eventId },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
       if (error) throw new Error(error.message ?? 'Join failed.');
@@ -389,8 +407,7 @@ export default function EventChatScreen() {
         setIsFull(maxParticipants !== null && participantCount + 1 >= maxParticipants);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not join the event. Please try again.';
-      Alert.alert('Error', msg);
+      Alert.alert('Detailed Error', JSON.stringify(err));
     } finally {
       setIsJoining(false);
     }
@@ -407,20 +424,79 @@ export default function EventChatScreen() {
     setDeleteConfirmVisible(false);
     setIsDeleting(true);
     try {
-      const { error } = await supabase.functions.invoke('delete-event', {
-        body: { event_id: eventId },
-      });
-      if (error) {
-        throw new Error(error.message ?? 'Delete failed.');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        Alert.alert('Session Expired', 'Your session has expired. Please sign in again.');
+        setIsDeleting(false);
+        return;
       }
+      const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+        },
+        body: JSON.stringify({ event_id: eventId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`SERVER SAID: ${data.error || JSON.stringify(data)}`);
+      }
+
       router.replace('/(tabs)/');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not delete the event.';
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('[EventChat] delete-event error:', msg);
-      Alert.alert('Error', msg);
+      Alert.alert('The Real Error', msg);
       setIsDeleting(false);
     }
   }, [eventId, router]);
+
+  // ── Leave event (participant only) ─────────────────────────────────────────
+  // Shows a native confirmation alert before invoking the Edge Function.
+  // On success, drops the user back to spectator mode (read-only chat).
+  const handleLeaveEvent = useCallback(() => {
+    if (!user || !eventId || isLeaving) return;
+    Alert.alert(
+      'Leave Event',
+      'You can rejoin later if spots are still available.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            setIsLeaving(true);
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) {
+                Alert.alert('Session Expired', 'Your session has expired. Please sign in again.');
+                setIsLeaving(false);
+                return;
+              }
+              const { data, error } = await supabase.functions.invoke('leave-event', {
+                body: { event_id: eventId },
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              });
+              if (error) throw new Error(error.message ?? 'Leave failed.');
+              if (data?.error && !data?.already_left) throw new Error(data.error);
+              // Optimistic update — user is now a spectator (read-only)
+              setIsParticipant(false);
+              setParticipantCount(prev => Math.max(0, prev - 1));
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Could not leave the event. Please try again.';
+              Alert.alert('Error', msg);
+            } finally {
+              setIsLeaving(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [user, eventId, isLeaving]);
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (isConnecting) {
@@ -581,9 +657,11 @@ return (
           visible={optionsModalVisible}
           onClose={() => setOptionsModalVisible(false)}
           isHost={isHost}
+          isParticipant={isParticipant}
           insetsBottom={insets.bottom}
           onSetMeetupPoint={handleSetMeetupPoint}
           onDeleteEvent={handleDeleteEvent}
+          onLeaveEvent={handleLeaveEvent}
         />
 
         <MeetupModal

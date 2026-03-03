@@ -10,7 +10,8 @@
       "WebSearch",
       "WebFetch(domain:docs.expo.dev)",
       "Bash(ls:*)",
-      "Bash(xargs wc:*)"
+      "Bash(xargs wc:*)",
+      "Bash(npx supabase:*)"
     ]
   }
 }
