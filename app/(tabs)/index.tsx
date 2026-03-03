@@ -23,7 +23,7 @@ import MapView, {
 } from 'react-native-maps';
 import * as Location from 'expo-location';
 import Supercluster from 'supercluster';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Bell, Check, LocateFixed, Plus, SlidersHorizontal } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
@@ -170,6 +170,18 @@ export default function MapScreen() {
       }
     },
     [],
+  );
+
+  // ── Re-fetch on tab focus (kills ghost pins after DB wipes) ──────────────
+
+  useFocusEffect(
+    useCallback(() => {
+      // lastFetchRef is null until the init useEffect completes its first fetch,
+      // so this is a no-op on the very first render — init already handles that.
+      if (!lastFetchRef.current) return;
+      const { latitude, longitude } = lastFetchRef.current;
+      fetchEvents(latitude, longitude);
+    }, [fetchEvents]),
   );
 
   // ── Realtime subscription ─────────────────────────────────────────────────

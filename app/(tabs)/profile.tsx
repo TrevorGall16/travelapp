@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COUNTRIES } from '../../constants/countries';
 import { Colors } from '../../constants/theme';
 import { streamClient } from '../../lib/streamClient';
-import { supabase } from '../../lib/supabase';
+import { forceGlobalSignOut, supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 
 const AVATAR_SIZE = 120;
@@ -128,6 +128,11 @@ export default function ProfileScreen() {
       {/* ── Log Out ── */}
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
         <Text style={styles.logoutText}>Log Out</Text>
+      </TouchableOpacity>
+
+      {/* ── Developer Reset ── */}
+      <TouchableOpacity style={styles.devResetButton} onPress={forceGlobalSignOut} activeOpacity={0.8}>
+        <Text style={styles.devResetText}>🛠 Developer Reset (Clear All Cache)</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -307,5 +312,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.errorLight,
+  },
+
+  // ── Developer Reset ───────────────────────────────────────
+  devResetButton: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderStyle: 'dashed',
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  devResetText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#475569',
   },
 });

@@ -59,6 +59,22 @@ Deno.serve(async (req: Request) => {
 
     // 4. Stream Chat Sync
     const streamServer = StreamChat.getInstance(STREAM_API_KEY, STREAM_SECRET_KEY);
+
+    // Guard: the Stream channel may not exist (e.g. after a dev DB wipe).
+    // queryChannels returns an empty array when the channel is missing.
+    const existingChannels = await streamServer.queryChannels(
+      { type: 'messaging', id: { $eq: `event_${event_id}` } },
+      {},
+      { limit: 1 },
+    );
+
+    if (existingChannels.length === 0) {
+      return new Response(JSON.stringify({ code: 'CHAT_ROOM_MISSING' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+
     const channel = streamServer.channel('messaging', `event_${event_id}`);
     await channel.addMembers([user.id]);
 
