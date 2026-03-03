@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Keyboard,
   Text,
   TouchableOpacity,
   useWindowDimensions,
@@ -65,6 +66,16 @@ const MOCK_MEMBERS: MemberEntry[] = [
 
 export default function EventChatScreen() {
   const { id: eventId } = useLocalSearchParams<{ id: string }>();
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardOpen(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardOpen(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
   const isMockEvent = eventId === MOCK_EVENT_ID;
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -451,12 +462,23 @@ export default function EventChatScreen() {
       });
 
 // ── Main render ────────────────────────────────────────────────────────────
-  return (
-    // softwareKeyboardLayoutMode="resize" (app.config.js) makes Android shrink the window
-    // when the keyboard opens. Stream's KeyboardCompatibleView then anchors MessageInput
-    // correctly. No KAV needed — it would fight the OS resize and misplace overlays.
+return (
+  <OverlayProvider>
+    {/* 1. Root wrapper is a plain View. 
+      KeyboardAvoidingView at the root level breaks Stream's BottomSheet math.
+    */}
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}>
+      {/* 2. Dynamic padding: 
+        If keyboard is open, we set padding to 0 so the internal KAV can sit flush.
+        If keyboard is closed, we use insets.bottom to protect the nav bar handle.
+      */}
+      <View 
+        style={{ 
+          flex: 1, 
+          paddingTop: insets.top, 
+          paddingBottom: isKeyboardOpen ? 0 : insets.bottom 
+        }}
+      >
 
         {/* ── Header ── */}
         <View style={styles.header}>
@@ -489,23 +511,19 @@ export default function EventChatScreen() {
           </View>
         </View>
 
-        {/* ── Expired banner ── */}
+        {/* ── Banners (Expired / Meetup / Join) ── */}
         {eventStatus === 'expired' && (
           <View style={styles.expiredBanner}>
-            <Text style={styles.expiredText}>
-              This event has ended — chat is read-only.
-            </Text>
+            <Text style={styles.expiredText}>This event has ended — chat is read-only.</Text>
           </View>
         )}
 
-        {/* ── Meetup banner ── */}
         <MeetupBanner
           meetupPoint={meetupPoint}
           isHost={isHost}
           onSetMeetupPoint={handleSetMeetupPoint}
         />
 
-        {/* ── Join bar ── */}
         {!isHost && (
           <View style={styles.joinBar}>
             {isParticipant ? null : isFull ? (
@@ -519,38 +537,23 @@ export default function EventChatScreen() {
                 disabled={isJoining}
                 activeOpacity={0.8}
               >
-                {isJoining
-                  ? <ActivityIndicator size="small" color={Colors.white} />
-                  : <Text style={styles.joinButtonText}>Join Meetup</Text>
-                }
+                {isJoining ? <ActivityIndicator size="small" color={Colors.white} /> : <Text style={styles.joinButtonText}>Join Meetup</Text>}
               </TouchableOpacity>
             )}
           </View>
         )}
 
-        {/* ── Stream chat ── */}
-        {/*
-         * onLayout fires whenever this View's position changes (banner show/hide).
-         * e.nativeEvent.layout.y is relative to the paddingTop View, so adding
-         * insets.top gives the true screen-relative Y — the correct KAV offset.
-         */}
+        {/* ── Stream Chat Container ── */}
         <View
           style={{ flex: 1 }}
           onLayout={(e) => setChatTopOffset(insets.top + e.nativeEvent.layout.y)}
         >
           <Chat client={streamClient} style={STREAM_THEME}>
-            {/*
-             * disableKeyboardCompatibleView: Stream's built-in KeyboardCompatibleView
-             * is disabled because we own the KAV inside. The two must not coexist.
-             */}
             <Channel channel={streamChannel} disableKeyboardCompatibleView={true}>
-              {/*
-               * KAV lives here — below the header/banners, above MessageInput.
-               * behavior='height' shrinks the KAV itself rather than adding padding,
-               * which is more reliable than 'padding' when resize mode is unreliable.
-               * keyboardVerticalOffset = screen-relative Y of this container so RN's
-               * KAV math correctly accounts for all content above it.
-               */}
+              {/* 3. The Internal KAV:
+                This only shrinks the chat area (MessageList + Input).
+                'height' behavior on Android forces a clean reflow of the list.
+              */}
               <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -564,12 +567,11 @@ export default function EventChatScreen() {
                   <MessageInput />
                 )}
               </KeyboardAvoidingView>
-
             </Channel>
           </Chat>
         </View>
 
-        {/* ── Deleting overlay ── */}
+        {/* ── Overlays & Modals ── */}
         {isDeleting && (
           <View style={styles.deletingOverlay}>
             <ActivityIndicator size="large" color={Colors.white} />
@@ -577,7 +579,6 @@ export default function EventChatScreen() {
           </View>
         )}
 
-        {/* ── Modals ── */}
         <OptionsModal
           visible={optionsModalVisible}
           onClose={() => setOptionsModalVisible(false)}
@@ -614,5 +615,6 @@ export default function EventChatScreen() {
 
       </View>
     </View>
-  );
+  </OverlayProvider>
+);
 }
