@@ -4,8 +4,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COUNTRIES } from '../../constants/countries';
 import { Colors } from '../../constants/theme';
-import { streamClient } from '../../lib/streamClient';
-import { forceGlobalSignOut, supabase } from '../../lib/supabase';
+import { forceGlobalSignOut } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 
 const AVATAR_SIZE = 120;
@@ -23,13 +22,9 @@ export default function ProfileScreen() {
 
   const country = COUNTRIES.find(c => c.code === profile?.country_code);
 
-  const handleLogout = async () => {
-    if (streamClient.userID) {
-      await streamClient.disconnectUser();
-    }
-    await supabase.auth.signOut();
-    // root layout auth guard handles navigation
-  };
+  // forceGlobalSignOut: disconnects Stream → signs out Supabase → clears AsyncStorage.
+  // Prevents state (tokens, cached profile) leaking to the next user on the same device.
+  const handleLogout = forceGlobalSignOut;
 
   return (
     <ScrollView

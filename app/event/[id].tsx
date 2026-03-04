@@ -5,14 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  Keyboard,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -66,31 +61,9 @@ const MOCK_MEMBERS: MemberEntry[] = [
 
 export default function EventChatScreen() {
   const { id: eventId } = useLocalSearchParams<{ id: string }>();
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardOpen(true));
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardOpen(false));
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
   const isMockEvent = eventId === MOCK_EVENT_ID;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-
-  // useWindowDimensions gives the live usable window (excludes nav bar on Android).
-  // Dimensions.get('screen') is the full physical display height.
-  // The difference is the exact hardware nav bar height on any device, even when
-  // useSafeAreaInsets().bottom returns 0 in Expo Go / Dev Client.
-  const { height: windowHeight } = useWindowDimensions();
-  const screenHeight = Dimensions.get('screen').height;
-  const androidNavBarHeight = screenHeight - windowHeight;
-  // +20px safe margin ensures clearance even if the OS draws a thin gesture handle
-  const bottomBumper = Platform.OS === 'android'
-    ? androidNavBarHeight + 20
-    : insets.bottom;
 
   const { user, profile, streamToken } = useAuthStore();
 
@@ -132,11 +105,6 @@ export default function EventChatScreen() {
   const [isJoining, setIsJoining] = useState(false);
 
   const channelRef = useRef<StreamChannel | null>(null);
-
-  // Screen-relative Y position of the KAV container, measured on layout.
-  // Used as keyboardVerticalOffset so KAV knows how far below the screen top it sits.
-  // Computed dynamically because the banners above it are conditional.
-  const [chatTopOffset, setChatTopOffset] = useState(0);
 
   const isHost = user?.id === eventHostId;
 
@@ -255,9 +223,22 @@ export default function EventChatScreen() {
 
         if (cancelled) return;
 
-        // 3. Watch the channel — makes it "live", populates channel.data + state.members
-        const ch = streamClient.channel('messaging', eventId);
-        await ch.watch();
+        // 3. Watch the channel — makes it "live", populates channel.data + state.members.
+        // Channel ID has the 'event_' prefix (set by create-event Edge Function).
+        // Retry once after 1.5 s to handle transient Stream propagation delays.
+        const ch = streamClient.channel('messaging', `event_${eventId}`);
+        let watchAttempts = 0;
+        while (true) {
+          try {
+            await ch.watch();
+            break;
+          } catch (watchErr) {
+            watchAttempts++;
+            if (watchAttempts >= 2) throw watchErr;
+            console.warn('[EventChat] ch.watch() attempt', watchAttempts, 'failed — retrying in 1.5 s');
+            await new Promise(res => setTimeout(res, 1_500));
+          }
+        }
 
         if (cancelled) {
           ch.stopWatching().catch(() => {});
@@ -332,15 +313,26 @@ export default function EventChatScreen() {
       if (!trimmed || !streamChannel) return;
       setIsSettingMeetup(true);
       try {
-        // Update Stream channel custom data — triggers channel.updated listener
-        await streamChannel.updatePartial({
-          set: { meetup_point: { label: trimmed } },
-        });
-        // DB persistence — migration: ALTER TABLE events ADD COLUMN meetup_point_label TEXT;
-        await supabase
+        // 1. Write to DB first — DB is the canonical source of truth.
+        // supabase.update() returns {data, error} and never throws, so we must
+        // check the error field explicitly.
+        const { error: dbError } = await supabase
           .from('events')
           .update({ meetup_point_label: trimmed })
           .eq('id', eventId);
+        if (dbError) throw new Error(dbError.message);
+
+        // 2. Push to Stream (notification layer) — non-fatal if it fails.
+        // DB already has the correct value, so the banner will show it on next
+        // cold load even if the channel.updated listener never fires.
+        try {
+          await streamChannel.updatePartial({ set: { meetup_point: { label: trimmed } } });
+        } catch (streamErr) {
+          console.warn('[saveMeetupPoint] Stream updatePartial failed (non-fatal):', streamErr);
+        }
+
+        // 3. Update local state directly so the banner refreshes immediately.
+        setMeetupPoint({ label: trimmed });
       } catch (err) {
         Alert.alert('Error', 'Could not save meetup point. Please try again.');
       } finally {
@@ -370,44 +362,66 @@ export default function EventChatScreen() {
       // explicitly as an override header is the only reliable approach.
       const { data: { session } } = await supabase.auth.getSession();
 
-      // ── DEBUG ─────────────────────────────────────────────────────────────
       if (!session) {
-        Alert.alert('SESSION IS NULL - FIX AUTH PERSISTENCE', 'supabase.auth.getSession() returned null.\nUser is not authenticated.');
+        Alert.alert('Session Error', 'Your session has expired. Please sign in again.');
         return;
       }
-      Alert.alert('DEBUG DATA', `Token Start: ${session?.access_token?.substring(0, 15)}\nUser ID: ${session?.user?.id}`);
-      // ── END DEBUG ──────────────────────────────────────────────────────────
 
-      const { data, error } = await supabase.functions.invoke('join-event', {
-        body: { event_id: eventId },
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/join-event`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+          },
+          body: JSON.stringify({ event_id: eventId }),
+        },
+      );
 
-      if (error) throw new Error(error.message ?? 'Join failed.');
+      const data = await response.json();
 
+      // Check semantic codes before inspecting response.ok — mirrors EventCard pattern.
       if (data?.code === 'EVENT_EXPIRED') {
         Alert.alert('Event Ended', 'This event has already expired.');
         setEventStatus('expired');
         return;
       }
       if (data?.code === 'VERIFIED_ONLY') {
-        Alert.alert('Verified Travelers Only', data.error ?? 'You need to be verified to join this event.');
+        Alert.alert(
+          'Verified Travelers Only',
+          data.error ?? 'You need to be verified to join this event.',
+        );
         return;
       }
-      if (data?.code === 'LIMIT_REACHED' || data?.error) {
-        Alert.alert('Sorry!', data.error ?? 'This event just filled up.');
+      if (data?.code === 'CHAT_ROOM_MISSING') {
+        Alert.alert(
+          'Chat Room Unavailable',
+          "This event's chat room hasn't been set up yet. Please wait a moment and try again, or contact the host.",
+        );
+        return;
+      }
+      if (data?.code === 'LIMIT_REACHED') {
+        Alert.alert('Event Full', data.error ?? 'This event just filled up.');
         setIsFull(true);
         return;
       }
 
-      // Success — update local state optimistically
+      if (!response.ok) {
+        throw new Error(`SERVER SAID: ${data.error || JSON.stringify(data)}`);
+      }
+
+      // Success — join-event now returns already_member:true when the DB insert
+      // was idempotent (23505). Only increment the display count for new joins.
       setIsParticipant(true);
       if (!data?.already_member) {
         setParticipantCount(prev => prev + 1);
         setIsFull(maxParticipants !== null && participantCount + 1 >= maxParticipants);
       }
     } catch (err) {
-      Alert.alert('Detailed Error', JSON.stringify(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      Alert.alert('Join Failed', msg);
     } finally {
       setIsJoining(false);
     }
@@ -477,12 +491,20 @@ export default function EventChatScreen() {
                 setIsLeaving(false);
                 return;
               }
-              const { data, error } = await supabase.functions.invoke('leave-event', {
-                body: { event_id: eventId },
-                headers: { Authorization: `Bearer ${session.access_token}` },
-              });
-              if (error) throw new Error(error.message ?? 'Leave failed.');
-              if (data?.error && !data?.already_left) throw new Error(data.error);
+              const response = await fetch(
+                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+                  },
+                  body: JSON.stringify({ event_id: eventId }),
+                },
+              );
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.error || 'Leave failed.');
               // Optimistic update — user is now a spectator (read-only)
               setIsParticipant(false);
               setParticipantCount(prev => Math.max(0, prev - 1));
@@ -540,19 +562,16 @@ export default function EventChatScreen() {
 // ── Main render ────────────────────────────────────────────────────────────
 return (
     // OverlayProvider lives in app/_layout.tsx — do NOT nest it here.
-    // Root wrapper is a plain View; KAV at root level breaks Stream's BottomSheet math.
-    <View style={{ flex: 1, backgroundColor: Colors.background }}>
-      {/* 2. Dynamic padding: 
-        If keyboard is open, we set padding to 0 so the internal KAV can sit flush.
-        If keyboard is closed, we use insets.bottom to protect the nav bar handle.
-      */}
-      <View 
-        style={{ 
-          flex: 1, 
-          paddingTop: insets.top, 
-          paddingBottom: isKeyboardOpen ? 0 : insets.bottom 
-        }}
-      >
+    // Single wrapper; Stream's KeyboardCompatibleView (enabled via
+    // disableKeyboardCompatibleView={false}) handles all keyboard avoidance.
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: Colors.background,
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom,
+      }}
+    >
 
         {/* ── Header ── */}
         <View style={styles.header}>
@@ -598,9 +617,9 @@ return (
           onSetMeetupPoint={handleSetMeetupPoint}
         />
 
-        {!isHost && (
+        {!isHost && !isParticipant && (
           <View style={styles.joinBar}>
-            {isParticipant ? null : isFull ? (
+            {isFull ? (
               <View style={[styles.joinButton, styles.joinButtonDisabled]}>
                 <Text style={styles.joinButtonTextMuted}>Event Full</Text>
               </View>
@@ -611,36 +630,29 @@ return (
                 disabled={isJoining}
                 activeOpacity={0.8}
               >
-                {isJoining ? <ActivityIndicator size="small" color={Colors.white} /> : <Text style={styles.joinButtonText}>Join Meetup</Text>}
+                {isJoining
+                  ? <ActivityIndicator size="small" color={Colors.white} />
+                  : <Text style={styles.joinButtonText}>Join Meetup</Text>
+                }
               </TouchableOpacity>
             )}
           </View>
         )}
 
         {/* ── Stream Chat Container ── */}
-        <View
-          style={{ flex: 1 }}
-          onLayout={(e) => setChatTopOffset(insets.top + e.nativeEvent.layout.y)}
-        >
+        {/* Stream's KeyboardCompatibleView (disableKeyboardCompatibleView={false})
+            is the single authority for keyboard avoidance. No competing KAV.
+            The root View's paddingBottom handles the home-indicator safe area;
+            iOS keyboard height already includes that inset, so KCV + paddingBottom
+            do NOT double-count — the padding is hidden under the keyboard when open. */}
+        <View style={{ flex: 1 }}>
           <Chat client={streamClient} style={STREAM_THEME}>
-            <Channel channel={streamChannel} disableKeyboardCompatibleView={true}>
-              {/* 3. The Internal KAV:
-                This only shrinks the chat area (MessageList + Input).
-                'height' behavior on Android forces a clean reflow of the list.
-              */}
-              <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={chatTopOffset}
-              >
-                <View style={{ flex: 1, marginBottom: 16 }}>
-                  <MessageList noGroupByUser />
-                </View>
+            <Channel channel={streamChannel} disableKeyboardCompatibleView={false}>
+              <MessageList noGroupByUser />
 
-                {(isParticipant || isHost) && (
-                  <MessageInput />
-                )}
-              </KeyboardAvoidingView>
+              {(isParticipant || isHost) && (
+                <MessageInput />
+              )}
             </Channel>
           </Chat>
         </View>
@@ -689,7 +701,6 @@ return (
           onNavigateToUser={(userId) => router.push(`/user/${userId}`)}
         />
 
-      </View>
     </View>
 );
 }

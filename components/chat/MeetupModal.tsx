@@ -1,5 +1,6 @@
 // components/chat/MeetupModal.tsx
 
+import { useRef } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -32,12 +33,15 @@ export function MeetupModal({
   isSettingMeetup,
   insetsBottom,
 }: MeetupModalProps) {
+  const inputRef = useRef<TextInput>(null);
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
       onRequestClose={onClose}
+      onShow={() => inputRef.current?.focus()}
     >
       {/*
        * KAV wraps the whole modal so the sheet slides up with the keyboard.
@@ -56,13 +60,13 @@ export function MeetupModal({
             Describe where the group should meet up.
           </Text>
           <TextInput
+            ref={inputRef}
             style={styles.meetupInput}
             value={meetupDraft}
             onChangeText={setMeetupDraft}
             placeholder="e.g. Front entrance of the café"
             placeholderTextColor={Colors.textTertiary}
             maxLength={100}
-            autoFocus
           />
           <View style={styles.meetupActions}>
             <Pressable style={styles.meetupCancelBtn} onPress={onClose}>

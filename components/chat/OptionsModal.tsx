@@ -41,7 +41,7 @@ export function OptionsModal({
               style={styles.optionRow}
               onPress={() => {
                 onClose();
-                onSetMeetupPoint();
+                setTimeout(onSetMeetupPoint, 350);
               }}
             >
               <Text style={styles.optionText}>Edit Meetup Point</Text>

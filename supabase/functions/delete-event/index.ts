@@ -32,24 +32,38 @@ Deno.serve(async (req) => {
     if (fetchError || !event) throw new Error('Event not found');
     if (event.host_id !== user.id) throw new Error('Only the host can delete this event');
 
-// 3. Delete from Stream Chat (with Ghost Protection)
+    // 3a. Soft-delete DB row first — blocks new joins immediately while we clean up Stream.
+    // This is the canonical "deleted" signal; new join attempts will see status !== 'active'.
+    const { error: softDeleteError } = await supabaseAdmin
+      .from('events')
+      .update({ status: 'deleted' })
+      .eq('id', event_id);
+
+    if (softDeleteError) throw softDeleteError;
+
+    // 3b. Delete Stream channel — if it fails (and it's not already gone), roll back the soft-delete.
     const streamServer = StreamChat.getInstance(
       Deno.env.get('EXPO_PUBLIC_STREAM_API_KEY')!,
       Deno.env.get('STREAM_SECRET_KEY')!
     );
     const channel = streamServer.channel('messaging', `event_${event_id}`);
-    
+
     try {
       await channel.delete();
     } catch (streamErr: any) {
-      // If code 16, the channel is already gone. We don't care, just keep going.
       if (streamErr.code !== 16) {
+        // Non-404 error — roll back the soft-delete so the event is still visible
+        await supabaseAdmin
+          .from('events')
+          .update({ status: 'active' })
+          .eq('id', event_id);
         throw streamErr;
       }
+      // code 16 = channel already missing — safe to proceed
       console.log('[delete-event] Stream channel already missing, skipping...');
     }
 
-    // 4. Delete from Supabase (Cascade will handle participants)
+    // 3c. Hard delete DB row — cascade handles event_participants
     const { error: deleteError } = await supabaseAdmin
       .from('events')
       .delete()

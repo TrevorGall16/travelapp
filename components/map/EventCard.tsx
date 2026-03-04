@@ -269,10 +269,9 @@ export default function EventCard({ event, onDismiss }: Props) {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(`SERVER SAID: ${data.error || JSON.stringify(data)}`);
-      }
-
+      // Check semantic codes before inspecting response.ok. Some codes (e.g.
+      // EVENT_EXPIRED) arrive as HTTP 200; others (e.g. CHAT_ROOM_MISSING) now
+      // arrive as HTTP 400. Checking codes first handles both cases uniformly.
       if (data?.code === 'EVENT_EXPIRED') {
         Alert.alert('Event Ended', 'This event has already expired.');
         return;
@@ -284,6 +283,18 @@ export default function EventCard({ event, onDismiss }: Props) {
           'This event is only open to verified travelers. Get verified from your Profile tab.',
         );
         return;
+      }
+
+      if (data?.code === 'CHAT_ROOM_MISSING') {
+        Alert.alert(
+          'Chat Room Unavailable',
+          "This event's chat room hasn't been set up yet. Please wait a moment and try again, or contact the host.",
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`SERVER SAID: ${data.error || JSON.stringify(data)}`);
       }
 
       // Success — user is now a member
@@ -427,12 +438,14 @@ export default function EventCard({ event, onDismiss }: Props) {
               )}
             </View>
 
-            {/* Meetup point (set via host action in Stream channel data — Phase 4) */}
+            {/* Meetup point — sourced from DB meetup_point_label column */}
             <View style={styles.meetupRow}>
               <Text style={styles.meetupPin}>📍</Text>
               <View>
                 <Text style={styles.meetupLabel}>Official Meetup Point</Text>
-                <Text style={styles.meetupValue}>Not decided yet</Text>
+                <Text style={styles.meetupValue}>
+                  {displayEvent.meetup_point_label ?? 'Not decided yet'}
+                </Text>
               </View>
             </View>
 

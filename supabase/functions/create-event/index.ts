@@ -175,6 +175,9 @@ Deno.serve(async (req: Request) => {
     const streamClient = StreamChat.getInstance(STREAM_API_KEY, STREAM_SECRET_KEY);
     const channelId = `event_${event.id}`;
 
+    // created_by_id and member_ids must be in the channel DATA object (3rd arg),
+    // not in channel.create(). The SDK validates them at construction time via
+    // server-side auth — passing them to create() is silently ignored.
     const channel = streamClient.channel('messaging', channelId, {
       name: title.trim(),
       created_by_id: user.id,
@@ -182,11 +185,13 @@ Deno.serve(async (req: Request) => {
     });
 
     await channel.create();
-  } catch (streamErr) {
+  } catch (streamErr: any) {
     // FATAL: If the chat channel fails, the app breaks. Delete the DB row and abort.
+    // Expose the real Stream error in the response so the client Alert shows the actual cause.
+    const streamErrDetail = streamErr?.message ?? String(streamErr);
     console.error('[create-event] Fatal Stream channel creation failed:', streamErr);
     await serviceClient.from('events').delete().eq('id', event.id);
-    return jsonResponse({ error: 'Failed to initialize chat room' }, 500);
+    return jsonResponse({ error: `Failed to initialize chat room: ${streamErrDetail}` }, 500);
   }
 
   return jsonResponse({ event });

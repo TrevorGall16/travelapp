@@ -176,21 +176,38 @@ export default function CreateEventScreen() {
     setIsSubmitting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('create-event', {
-        body: {
-          title: values.title,
-          category: values.category,
-          description: values.description || null,
-          expires_at: expiresAt.toISOString(),
-          latitude: pinCoords.latitude,
-          longitude: pinCoords.longitude,
-          location_name: locationName.trim() || null,
-          city: city ?? null,
-          verified_only: values.verified_only,
-        },
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        Alert.alert('Session Error', 'Your session has expired. Please sign in again.');
+        return;
+      }
 
-      if (error) throw error;
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/create-event`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+          },
+          body: JSON.stringify({
+            title: values.title,
+            category: values.category,
+            description: values.description || null,
+            expires_at: expiresAt.toISOString(),
+            latitude: pinCoords.latitude,
+            longitude: pinCoords.longitude,
+            location_name: locationName.trim() || null,
+            city: city ?? null,
+            verified_only: values.verified_only,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(`SERVER SAID: ${data?.error ?? JSON.stringify(data)}`);
 
       // Free user event limit reached
       if (data?.code === 'LIMIT_REACHED') {
@@ -227,9 +244,9 @@ export default function CreateEventScreen() {
       showToast('Your event is live! 🎉');
       setTimeout(() => router.back(), 600);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[CreateEvent] - submit failed:', message);
-      Alert.alert('Error', 'Could not create event. Please try again.');
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[CreateEvent] submit failed:', message);
+      Alert.alert('The Real Error', message);
     } finally {
       setIsSubmitting(false);
     }

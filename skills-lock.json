@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "skills": {
+    "mobile-android-design": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "a3d9006fb0c2a6e0b7ca76eff43e7b6ea166959c74e0bc9fbd1de934666d08c0"
+    },
+    "mobile-app-debugging": {
+      "source": "aj-geddes/useful-ai-prompts",
+      "sourceType": "github",
+      "computedHash": "0ef4bd16641e09f9dc2bfadb162cba92000490267823e963dd76b19c6144386a"
+    },
+    "mobile-developer": {
+      "source": "daffy0208/ai-dev-standards",
+      "sourceType": "github",
+      "computedHash": "226a0adda251aa51630e9143f1ea9e112ed27cc93d6256f3e0bef154c0c66fe1"
+    },
+    "senior-mobile": {
+      "source": "borghei/claude-skills",
+      "sourceType": "github",
+      "computedHash": "60cb625c3e93731357a389c80736a9e44f02bed4158e51cb8460edefd6109503"
+    },
+    "sleek-design-mobile-apps": {
+      "source": "sleekdotdesign/agent-skills",
+      "sourceType": "github",
+      "computedHash": "d65c8d34b66f95ea2ffadee9803cd2a5bbf27464cd30e754195e74848ee4b712"
+    }
+  }
+}

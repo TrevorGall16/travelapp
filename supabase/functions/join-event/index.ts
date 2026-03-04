@@ -8,10 +8,6 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req: Request) => {
-  // DEBUG: log every header the function receives so we can confirm what token
-  // the client is actually sending. Remove once the 401 root cause is confirmed.
-  console.log('FUNCTION TRIGGERED - HEADERS:', JSON.stringify(Object.fromEntries(req.headers.entries())));
-
   // 1. CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -23,12 +19,13 @@ Deno.serve(async (req: Request) => {
     const STREAM_API_KEY = Deno.env.get('EXPO_PUBLIC_STREAM_API_KEY')!;
     const STREAM_SECRET_KEY = Deno.env.get('STREAM_SECRET_KEY')!;
 
-    // Initialize Service Client (High Privileges)
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get User from Header - This is the standard way to get the caller's ID
+    // 2. Verify caller JWT
     const authHeader = req.headers.get('Authorization')!;
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(authHeader.replace('Bearer ', ''));
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(
+      authHeader.replace('Bearer ', ''),
+    );
 
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -39,7 +36,7 @@ Deno.serve(async (req: Request) => {
 
     const { event_id } = await req.json();
 
-    // 2. Fetch Event
+    // 3. Fetch Event
     const { data: event, error: eventError } = await supabaseAdmin
       .from('events')
       .select('status, verified_only')
@@ -49,19 +46,51 @@ Deno.serve(async (req: Request) => {
     if (eventError || !event) throw new Error('Event not found');
     if (event.status !== 'active') throw new Error('EVENT_EXPIRED');
 
-    // 3. Insert Participant (Idempotent)
+    // 3b. Enforce verified_only gate
+    if (event.verified_only) {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('verification_status')
+        .eq('id', user.id)
+        .single();
+      if (profile?.verification_status !== 'verified') {
+        return new Response(
+          JSON.stringify({ code: 'VERIFIED_ONLY', error: 'This event is for verified travelers only.' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+
+    // 4. Insert Participant (Idempotent)
+    // Track whether we actually inserted a new row — determines whether we need
+    // to roll back on a downstream Stream failure.
     const { error: insertError } = await supabaseAdmin
       .from('event_participants')
       .insert({ event_id, user_id: user.id });
 
-    // Handle "Already Joined" - Code 23505 is unique violation
+    // 23505 = unique violation → user is already in the table (idempotent skip).
+    // didInsert is false in this case: no new DB row, so no rollback is needed.
+    const didInsert = !insertError;
     if (insertError && insertError.code !== '23505') throw insertError;
 
-    // 4. Stream Chat Sync
+    // ── Helper: undo the DB insert if something downstream fails ──────────────
+    const rollbackInsert = async () => {
+      if (!didInsert) return; // nothing to undo if we didn't insert
+      const { error: rbErr } = await supabaseAdmin
+        .from('event_participants')
+        .delete()
+        .eq('event_id', event_id)
+        .eq('user_id', user.id);
+      if (rbErr) {
+        console.error('[join-event] ROLLBACK FAILED — DB may be inconsistent:', rbErr.message);
+      }
+    };
+
+    // 5. Stream Chat Sync
     const streamServer = StreamChat.getInstance(STREAM_API_KEY, STREAM_SECRET_KEY);
 
-    // Guard: the Stream channel may not exist (e.g. after a dev DB wipe).
-    // queryChannels returns an empty array when the channel is missing.
+    // Guard: Stream channel may not exist (e.g. after a dev DB wipe, or if
+    // create-event's Stream call failed silently before the rollback path fired).
     const existingChannels = await streamServer.queryChannels(
       { type: 'messaging', id: { $eq: `event_${event_id}` } },
       {},
@@ -69,16 +98,32 @@ Deno.serve(async (req: Request) => {
     );
 
     if (existingChannels.length === 0) {
-      return new Response(JSON.stringify({ code: 'CHAT_ROOM_MISSING' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      });
+      // Roll back the DB insert so the user is not stranded in event_participants
+      // with no corresponding Stream membership.
+      await rollbackInsert();
+      return new Response(
+        JSON.stringify({
+          code: 'CHAT_ROOM_MISSING',
+          error: "This event's chat room is unavailable. Please wait or contact the host.",
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
     }
 
-    const channel = streamServer.channel('messaging', `event_${event_id}`);
-    await channel.addMembers([user.id]);
+    // 6. Add member to the Stream channel — roll back DB on failure
+    try {
+      const channel = streamServer.channel('messaging', `event_${event_id}`);
+      await channel.addMembers([user.id]);
+    } catch (streamErr: any) {
+      console.error('[join-event] addMembers failed — rolling back DB insert:', streamErr);
+      await rollbackInsert();
+      throw streamErr; // re-thrown → caught by outer catch → 400 response
+    }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, already_member: !didInsert }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });

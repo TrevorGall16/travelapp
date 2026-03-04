@@ -64,4 +64,5 @@ export interface DBEvent {
 export interface Event extends Omit<DBEvent, 'location'> {
   latitude: number;
   longitude: number;
+  meetup_point_label?: string | null;
 }
