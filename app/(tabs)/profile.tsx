@@ -1,26 +1,64 @@
+import { useCallback, useEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COUNTRIES } from '../../constants/countries';
 import { Colors } from '../../constants/theme';
+import { supabase } from '../../lib/supabase';
 import { forceGlobalSignOut } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
+import { useFocusEffect } from 'expo-router';
 
 const AVATAR_SIZE = 120;
 const AVATAR_RING = 3;
 
-const STATS = [
-  { value: '0', label: 'Activities' },
-  { value: '0', label: 'Connections' },
-  { value: '1', label: 'Country' },
-] as const;
-
 export default function ProfileScreen() {
-  const { profile } = useAuthStore();
+  const { profile, user } = useAuthStore();
   const insets = useSafeAreaInsets();
 
   const country = COUNTRIES.find(c => c.code === profile?.country_code);
+
+  // Real stats — fetched from DB on focus
+  const [connections, setConnections] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      // "Connections" = distinct users who shared an event with this user
+      (async () => {
+        try {
+          // 1. Get all event IDs the user participated in
+          const { data: myEvents } = await supabase
+            .from('event_participants')
+            .select('event_id')
+            .eq('user_id', user.id);
+          if (!myEvents || myEvents.length === 0) { setConnections(0); return; }
+
+          const eventIds = myEvents.map(r => r.event_id);
+
+          // 2. Count distinct other users across those events
+          const { data: others } = await supabase
+            .from('event_participants')
+            .select('user_id')
+            .in('event_id', eventIds)
+            .neq('user_id', user.id);
+
+          const unique = new Set(others?.map(r => r.user_id) ?? []);
+          setConnections(unique.size);
+        } catch { /* non-critical */ }
+      })();
+    }, [user]),
+  );
+
+  const activitiesCount = profile?.events_hosted_count ?? 0;
+  const countriesCount = profile?.visited_countries?.length || 1;
+
+  const STATS = [
+    { value: String(activitiesCount), label: 'Activities' },
+    { value: String(connections), label: 'Connections' },
+    { value: String(countriesCount), label: 'Countries' },
+  ];
 
   // forceGlobalSignOut: disconnects Stream → signs out Supabase → clears AsyncStorage.
   // Prevents state (tokens, cached profile) leaking to the next user on the same device.

@@ -9,6 +9,8 @@ interface MapFilters {
 interface MapState {
   events: Event[];
   filters: MapFilters;
+  /** Monotonic counter — incremented on every event mutation to force supercluster rebuild. */
+  mapKey: number;
   setEvents: (events: Event[]) => void;
   addEvent: (event: Event) => void;
   updateEvent: (event: Event) => void;
@@ -19,25 +21,26 @@ interface MapState {
 export const useMapStore = create<MapState>()((set) => ({
   events: [],
   filters: { radius: 5000, category: null },
+  mapKey: 0,
 
-  setEvents: (events) => set({ events }),
+  setEvents: (events) => set((state) => ({ events, mapKey: state.mapKey + 1 })),
 
   addEvent: (event) =>
-    set((state) => ({
-      // Deduplicate — ignore if we already have this event id
-      events: state.events.some((e) => e.id === event.id)
-        ? state.events
-        : [...state.events, event],
-    })),
+    set((state) => {
+      if (state.events.some((e) => e.id === event.id)) return state;
+      return { events: [...state.events, event], mapKey: state.mapKey + 1 };
+    }),
 
   updateEvent: (event) =>
     set((state) => ({
       events: state.events.map((e) => (e.id === event.id ? event : e)),
+      mapKey: state.mapKey + 1,
     })),
 
   removeEvent: (id) =>
     set((state) => ({
       events: state.events.filter((e) => e.id !== id),
+      mapKey: state.mapKey + 1,
     })),
 
   setFilters: (partial) =>

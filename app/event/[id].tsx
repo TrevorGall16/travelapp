@@ -78,6 +78,7 @@ export default function EventChatScreen() {
   const [eventHostId, setEventHostId] = useState<string | null>(null);
 
   const [meetupPoint, setMeetupPoint] = useState<MeetupPoint | null>(null);
+  const [eventCoords, setEventCoords] = useState<{ latitude: number; longitude: number } | null>(null);
 
   // Options modal (replaces native ActionSheet / Alert.alert for the ••• menu)
   const [optionsModalVisible, setOptionsModalVisible] = useState(false);
@@ -185,7 +186,7 @@ export default function EventChatScreen() {
         // 1. Fetch event metadata
         const { data: eventData, error: eventError } = await supabase
           .from('events')
-          .select('title, participant_count, max_participants, status, host_id, meetup_point_label')
+          .select('title, participant_count, max_participants, status, host_id, meetup_point_label, location')
           .eq('id', eventId)
           .single();
 
@@ -207,19 +208,21 @@ export default function EventChatScreen() {
           if (eventData.meetup_point_label) {
             setMeetupPoint({ label: eventData.meetup_point_label });
           }
+          // Parse location for Edit Pin screen — PostgREST returns GeoJSON for geography columns
+          if (eventData.location && typeof eventData.location === 'object') {
+            const [lon, lat] = (eventData.location as { coordinates: [number, number] }).coordinates;
+            if (isFinite(lat) && isFinite(lon)) {
+              setEventCoords({ latitude: lat, longitude: lon });
+            }
+          }
         }
 
-        // 2. Connect Stream user — idempotent: skip if already connected
-        if (!streamClient.userID) {
-          await streamClient.connectUser(
-            {
-              id: user.id,
-              name: profile.display_name,
-              image: profile.avatar_url,
-            },
-            streamToken,
-          );
-        }
+        // 2. Stream user is connected centrally in _layout.tsx.
+        // Sync latest avatar/name so other users see current data.
+        await streamClient.partialUpdateUser({
+          id: user.id,
+          set: { name: profile.display_name, image: profile.avatar_url },
+        });
 
         if (cancelled) return;
 
@@ -348,6 +351,13 @@ export default function EventChatScreen() {
     setMeetupModalVisible(true);
   }, [meetupPoint]);
 
+  const handleEditPinLocation = useCallback(() => {
+    if (!eventCoords) return;
+    router.push(
+      `/event/edit-location?eventId=${eventId}&lat=${eventCoords.latitude}&lon=${eventCoords.longitude}`,
+    );
+  }, [eventCoords, eventId, router]);
+
   // ── Join event ─────────────────────────────────────────────────────────────
   // The Edge Function handles both the DB insert and Stream channel membership
   // atomically (with rollback). Client must NOT call channel.addMembers separately.
@@ -460,6 +470,8 @@ export default function EventChatScreen() {
         throw new Error(`SERVER SAID: ${data.error || JSON.stringify(data)}`);
       }
 
+      // Clear overlay BEFORE navigating so it doesn't persist during transition
+      setIsDeleting(false);
       router.replace('/(tabs)/');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -569,7 +581,6 @@ return (
         flex: 1,
         backgroundColor: Colors.background,
         paddingTop: insets.top,
-        paddingBottom: insets.bottom,
       }}
     >
 
@@ -648,7 +659,7 @@ return (
         <View style={{ flex: 1 }}>
           <Chat client={streamClient} style={STREAM_THEME}>
             <Channel channel={streamChannel} disableKeyboardCompatibleView={false}>
-              <MessageList noGroupByUser />
+              <MessageList noGroupByUser showUserAvatars />
 
               {(isParticipant || isHost) && (
                 <MessageInput />
@@ -671,7 +682,9 @@ return (
           isHost={isHost}
           isParticipant={isParticipant}
           insetsBottom={insets.bottom}
+          eventId={eventId ?? ''}
           onSetMeetupPoint={handleSetMeetupPoint}
+          onEditPinLocation={handleEditPinLocation}
           onDeleteEvent={handleDeleteEvent}
           onLeaveEvent={handleLeaveEvent}
         />

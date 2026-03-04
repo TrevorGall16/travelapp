@@ -22,9 +22,9 @@ import { supabase } from '../../lib/supabase';
 // Deep-link scheme configured in app.json → expo.scheme
 const REDIRECT_URL = 'nomadmeet://auth/callback';
 
-// ── Dev bypass — remove before shipping ───────────────────────────────────
-const DEV_EMAIL = 'testuser1@gmail.com';
-const DEV_PASSWORD = 'password123';
+// ── Dev bypass — stripped from production builds ──────────────────────────
+const DEV_EMAIL = __DEV__ ? 'testuser1@gmail.com' : '';
+const DEV_PASSWORD = __DEV__ ? 'password123' : '';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -179,45 +179,49 @@ export default function LoginScreen() {
           <Text style={styles.legalLink}>Privacy Policy</Text>.
         </Text>
 
-        {/* ── Dev Bypass ── remove before shipping ────────────────────────── */}
-        <View style={styles.devDivider}>
-          <View style={styles.devDividerLine} />
-          <Text style={styles.devDividerLabel}>DEV ONLY</Text>
-          <View style={styles.devDividerLine} />
-        </View>
+        {/* ── Dev Bypass — hidden in production builds ──────────────────── */}
+        {__DEV__ && (
+          <>
+            <View style={styles.devDivider}>
+              <View style={styles.devDividerLine} />
+              <Text style={styles.devDividerLabel}>DEV ONLY</Text>
+              <View style={styles.devDividerLine} />
+            </View>
 
-        <TextInput
-          style={styles.devInput}
-          value={devEmail}
-          onChangeText={setDevEmail}
-          placeholder="email"
-          placeholderTextColor="#475569"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          editable={!isLoading}
-        />
-        <TextInput
-          style={styles.devInput}
-          value={devPassword}
-          onChangeText={setDevPassword}
-          placeholder="password"
-          placeholderTextColor="#475569"
-          secureTextEntry
-          editable={!isLoading}
-        />
+            <TextInput
+              style={styles.devInput}
+              value={devEmail}
+              onChangeText={setDevEmail}
+              placeholder="email"
+              placeholderTextColor="#475569"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={!isLoading}
+            />
+            <TextInput
+              style={styles.devInput}
+              value={devPassword}
+              onChangeText={setDevPassword}
+              placeholder="password"
+              placeholderTextColor="#475569"
+              secureTextEntry
+              editable={!isLoading}
+            />
 
-        <TouchableOpacity
-          style={[styles.devButton, isLoading && styles.buttonDisabled]}
-          onPress={handleDevSignIn}
-          disabled={isLoading}
-          activeOpacity={0.8}
-        >
-          {isSubmittingDev ? (
-            <ActivityIndicator color="#94A3B8" size="small" />
-          ) : (
-            <Text style={styles.devButtonText}>Sign in (Dev)</Text>
-          )}
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.devButton, isLoading && styles.buttonDisabled]}
+              onPress={handleDevSignIn}
+              disabled={isLoading}
+              activeOpacity={0.8}
+            >
+              {isSubmittingDev ? (
+                <ActivityIndicator color="#94A3B8" size="small" />
+              ) : (
+                <Text style={styles.devButtonText}>Sign in (Dev)</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );

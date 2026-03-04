@@ -9,26 +9,18 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { differenceInMinutes } from 'date-fns';
 
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import type { EventCategory } from '../../types';
+import { CATEGORY_EMOJI } from '../../constants/categories';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ELECTRIC_BLUE = '#3B82F6';
-
-const CATEGORY_EMOJI: Record<EventCategory, string> = {
-  beer: '🍺',
-  food: '🍜',
-  sightseeing: '🏛️',
-  adventure: '🧗',
-  culture: '🎭',
-  other: '📍',
-};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -228,9 +220,12 @@ export default function MyEventsScreen() {
     }
   }, [user]);
 
-  useEffect(() => {
-    fetchMyEvents();
-  }, [fetchMyEvents]);
+  // Re-fetch on mount AND every time this tab gains focus (back from chat, etc.)
+  useFocusEffect(
+    useCallback(() => {
+      fetchMyEvents();
+    }, [fetchMyEvents]),
+  );
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);

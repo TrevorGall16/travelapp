@@ -11,7 +11,8 @@
       "WebFetch(domain:docs.expo.dev)",
       "Bash(ls:*)",
       "Bash(xargs wc:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

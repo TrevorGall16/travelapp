@@ -32,18 +32,30 @@ interface RequestBody {
   verified_only: boolean;
 }
 
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
+  // CORS Preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   // Only accept POST
   if (req.method !== 'POST') {
     return jsonResponse({ error: 'Method not allowed' }, 405);
@@ -107,7 +119,7 @@ Deno.serve(async (req: Request) => {
   const [profileResult, activeEventCountResult] = await Promise.all([
     serviceClient
       .from('profiles')
-      .select('verification_status')
+      .select('verification_status, display_name, avatar_url')
       .eq('id', user.id)
       .single(),
     serviceClient
@@ -173,6 +185,16 @@ Deno.serve(async (req: Request) => {
   // ── 6. Create Stream.io channel ──────────────────────────────────────────
   try {
     const streamClient = StreamChat.getInstance(STREAM_API_KEY, STREAM_SECRET_KEY);
+
+    // Upsert the Stream user BEFORE any channel operations — prevents
+    // "user not found" errors (codes 4/17) when the client hasn't called
+    // connectUser yet or the Stream user was purged.
+    await streamClient.upsertUser({
+      id: user.id,
+      name: profileResult.data?.display_name ?? user.email ?? 'Traveler',
+      image: profileResult.data?.avatar_url ?? undefined,
+    });
+
     const channelId = `event_${event.id}`;
 
     // created_by_id and member_ids must be in the channel DATA object (3rd arg),

@@ -42,6 +42,7 @@ import {
   type ClusterOutput,
 } from '../../lib/mapGeo';
 import { styles } from '../../styles/mapScreenStyles';
+import { CATEGORY_EMOJI } from '../../constants/categories';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -57,15 +58,6 @@ const FILTER_OPTIONS: { label: string; value: string }[] = [
   { label: 'This Week', value: 'this_week' },
 ];
 
-const CATEGORY_EMOJI: Record<EventCategory, string> = {
-  beer: '🍺',
-  food: '🍜',
-  sightseeing: '🏛️',
-  adventure: '🧗',
-  culture: '🎭',
-  other: '📍',
-};
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MapScreen() {
@@ -74,7 +66,7 @@ export default function MapScreen() {
   const { profile } = useAuthStore();
   const { coordinates, city, setCoordinates, setPermissionStatus, setCity } =
     useLocationStore();
-  const { events, setEvents, addEvent, updateEvent, removeEvent } =
+  const { events, mapKey, setEvents, addEvent, updateEvent, removeEvent } =
     useMapStore();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -84,6 +76,8 @@ export default function MapScreen() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
+  // Stacked-pins modal: shown when a cluster's leaves all share the same coordinate
+  const [stackedEventIds, setStackedEventIds] = useState<string[]>([]);
 
   const mapRef = useRef<MapView>(null);
   const lastFetchRef = useRef<{ latitude: number; longitude: number } | null>(
@@ -92,21 +86,22 @@ export default function MapScreen() {
   const locationWatchRef = useRef<Location.LocationSubscription | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
-  // Stable supercluster instance — recreated only when component mounts.
+  // Supercluster instance — recreated when mapKey changes to force a full re-index.
   const sc = useRef(
     new Supercluster<PinProperties>({ radius: 6000, maxZoom: 20 }),
   );
+  const lastMapKeyRef = useRef(mapKey);
 
   // ── RPC fetch ──────────────────────────────────────────────────────────────
 
   const fetchEvents = useCallback(
     async (lat: number, lon: number) => {
-      console.log('[Map Fetch] Payload:', { lat, lng: lon, radius_km: FETCH_RADIUS_KM });
+      console.log('[Map Fetch] Payload:', { user_lat: lat, user_lon: lon, radius_meters: FETCH_RADIUS_METERS });
 
-      const { data, error } = await supabase.rpc('get_nearby_events', {
-        lat,
-        lng: lon,
-        radius_km: FETCH_RADIUS_KM,
+      const { data, error } = await supabase.rpc('get_events_within_radius', {
+        user_lat: lat,
+        user_lon: lon,
+        radius_meters: FETCH_RADIUS_METERS,
       });
 
       console.log('[Map Fetch] Result: rows =', Array.isArray(data) ? data.length : data,
@@ -115,7 +110,7 @@ export default function MapScreen() {
       );
 
       if (error) {
-        console.error('[Map] get_nearby_events error:', error.message, error.details);
+        console.error('[Map] get_events_within_radius error:', error.message, error.details);
         return;
       }
       const now = new Date();
@@ -137,7 +132,7 @@ export default function MapScreen() {
   // ── Supercluster computation ───────────────────────────────────────────────
 
   const recomputeClusters = useCallback(
-    (r: Region, evts: Event[]) => {
+    (r: Region, evts: Event[], currentMapKey: number) => {
       const { latitude, longitude, latitudeDelta, longitudeDelta } = r;
 
       // Zero-guards: bail on degenerate region values
@@ -150,6 +145,12 @@ export default function MapScreen() {
         !isFinite(longitude)
       ) {
         return;
+      }
+
+      // Rebuild the Supercluster instance when mapKey changes to force a clean KD-tree
+      if (currentMapKey !== lastMapKeyRef.current) {
+        sc.current = new Supercluster<PinProperties>({ radius: 6000, maxZoom: 20 });
+        lastMapKeyRef.current = currentMapKey;
       }
 
       const zoom = Math.max(0, Math.min(20, Math.round(Math.log2(360 / longitudeDelta))));
@@ -187,22 +188,23 @@ export default function MapScreen() {
   // ── Realtime subscription ─────────────────────────────────────────────────
 
   const subscribeRealtime = useCallback(
-    (userCoords: { latitude: number; longitude: number }) => {
+    (userCoords: { latitude: number; longitude: number }, userCity: string | null) => {
       // Tear down any existing channel before creating a fresh one
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
 
-      // NOTE: A `city` TEXT column should be added to the `events` table and
-      // used here as `filter: 'city=eq.<cityName>'` to scope the subscription
-      // server-side and prevent global data leaks. Until then we filter
-      // client-side by radius after receiving each change.
+      // When the user's city is known, scope the Realtime subscription
+      // server-side so only events in the same city are delivered.
+      // Falls back to unfiltered + client-side radius guard when city is null.
+      const filterClause = userCity ? `city=eq.${userCity}` : undefined;
+
       const channel = supabase
         .channel('events-map')
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'events' },
+          { event: 'INSERT', schema: 'public', table: 'events', ...(filterClause ? { filter: filterClause } : {}) },
           (payload) => {
             const row = payload.new as DBEvent;
             if (row.status !== 'active') return;
@@ -220,7 +222,7 @@ export default function MapScreen() {
         )
         .on(
           'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'events' },
+          { event: 'UPDATE', schema: 'public', table: 'events', ...(filterClause ? { filter: filterClause } : {}) },
           (payload) => {
             const row = payload.new as DBEvent;
             if (row.status === 'expired') {
@@ -233,7 +235,7 @@ export default function MapScreen() {
         )
         .on(
           'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'events' },
+          { event: 'DELETE', schema: 'public', table: 'events', ...(filterClause ? { filter: filterClause } : {}) },
           (payload) => {
             const old = payload.old as { id?: string };
             if (old.id) removeEvent(old.id);
@@ -299,7 +301,7 @@ export default function MapScreen() {
       await fetchEvents(latitude, longitude);
       if (!isMounted) return;
 
-      subscribeRealtime({ latitude, longitude });
+      subscribeRealtime({ latitude, longitude }, detectedCity);
 
       const initialRegion: Region = {
         latitude,
@@ -332,9 +334,18 @@ export default function MapScreen() {
               newLon,
             );
             if (dist > REFETCH_THRESHOLD_METERS) {
+              // Re-geocode to detect city change
+              let newCity = detectedCity;
+              try {
+                const [place] = await Location.reverseGeocodeAsync({ latitude: newLat, longitude: newLon });
+                newCity = place?.city ?? place?.district ?? place?.subregion ?? null;
+                if (isMounted) setCity(newCity);
+              } catch { /* keep previous city */ }
+
               await fetchEvents(newLat, newLon);
               if (isMounted) {
-                subscribeRealtime({ latitude: newLat, longitude: newLon });
+                subscribeRealtime({ latitude: newLat, longitude: newLon }, newCity);
+                detectedCity = newCity;
               }
             }
           }
@@ -364,36 +375,45 @@ export default function MapScreen() {
 
   // Recompute clusters whenever the event list or visible region changes
   useEffect(() => {
-    if (region) recomputeClusters(region, events);
-  }, [events, region, recomputeClusters]);
+    if (region) recomputeClusters(region, events, mapKey);
+  }, [events, region, mapKey, recomputeClusters]);
 
   // ── Event handlers ────────────────────────────────────────────────────────
 
   const handleRegionChangeComplete = useCallback(
     (newRegion: Region) => {
       setRegion(newRegion);
-      recomputeClusters(newRegion, events);
+      recomputeClusters(newRegion, events, mapKey);
     },
-    [events, recomputeClusters],
+    [events, mapKey, recomputeClusters],
   );
 
   const handleClusterPress = useCallback(
     (clusterId: number, coordinate: { latitude: number; longitude: number }) => {
       if (!mapRef.current) return;
       const leaves = sc.current.getLeaves(clusterId, Infinity);
-      if (leaves.length === 0) return; // zero-guard
+      if (leaves.length === 0) return;
 
       const lats = leaves.map((f) => f.geometry.coordinates[1]);
       const lons = leaves.map((f) => f.geometry.coordinates[0]);
-      const minLat = Math.min(...lats);
-      const maxLat = Math.max(...lats);
-      const minLon = Math.min(...lons);
-      const maxLon = Math.max(...lons);
 
+      // Stacked-pins detection: all leaves within ~11 m of each other (0.0001°).
+      // Zooming in won't separate them — show a selection modal instead.
+      const latSpread = Math.max(...lats) - Math.min(...lats);
+      const lonSpread = Math.max(...lons) - Math.min(...lons);
+      if (latSpread < 0.0001 && lonSpread < 0.0001) {
+        const ids = leaves.map(
+          (f) => (f.properties as { eventId: string }).eventId,
+        );
+        setStackedEventIds(ids);
+        return;
+      }
+
+      // Normal cluster: zoom to fit the bounding box of all leaves
       mapRef.current.fitToCoordinates(
         [
-          { latitude: minLat, longitude: minLon },
-          { latitude: maxLat, longitude: maxLon },
+          { latitude: Math.min(...lats), longitude: Math.min(...lons) },
+          { latitude: Math.max(...lats), longitude: Math.max(...lons) },
         ],
         {
           edgePadding: { top: 80, right: 60, bottom: 80, left: 60 },
@@ -626,6 +646,46 @@ export default function MapScreen() {
           </Pressable>
         </>
       )}
+
+      {/* ── Stacked-pins Modal ── */}
+      {/* Shown when multiple events share the same map coordinate.
+          Zooming in won't separate them, so we list them for direct selection. */}
+      <Modal
+        animationType="slide"
+        transparent
+        visible={stackedEventIds.length > 0}
+        onRequestClose={() => setStackedEventIds([])}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setStackedEventIds([])}
+        />
+        <View style={[styles.filterSheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.filterHandle} />
+          <Text style={styles.filterTitle}>
+            {stackedEventIds.length} Events Here
+          </Text>
+          {stackedEventIds.map((id) => {
+            const ev = events.find((e) => e.id === id);
+            if (!ev) return null;
+            return (
+              <TouchableOpacity
+                key={id}
+                style={styles.filterRow}
+                onPress={() => {
+                  setStackedEventIds([]);
+                  setSelectedEvent(ev);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.filterRowLabel}>
+                  {CATEGORY_EMOJI[ev.category] ?? '📍'} {ev.title}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </Modal>
 
       {/* ── Filter Modal ── */}
       <Modal

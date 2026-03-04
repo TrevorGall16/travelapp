@@ -2,6 +2,8 @@
 
 import { Alert, Modal, Pressable, Text, View } from 'react-native';
 import { styles } from '../../styles/eventChatStyles';
+import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../stores/authStore';
 
 interface OptionsModalProps {
   visible: boolean;
@@ -9,7 +11,9 @@ interface OptionsModalProps {
   isHost: boolean;
   isParticipant: boolean;
   insetsBottom: number;
+  eventId: string;
   onSetMeetupPoint: () => void;
+  onEditPinLocation: () => void;
   onDeleteEvent: () => void;
   onLeaveEvent: () => void;
 }
@@ -20,10 +24,13 @@ export function OptionsModal({
   isHost,
   isParticipant,
   insetsBottom,
+  eventId,
   onSetMeetupPoint,
+  onEditPinLocation,
   onDeleteEvent,
   onLeaveEvent,
 }: OptionsModalProps) {
+  const { user } = useAuthStore();
   return (
     <Modal
       visible={visible}
@@ -52,7 +59,7 @@ export function OptionsModal({
               style={styles.optionRow}
               onPress={() => {
                 onClose();
-                console.log('Open Map Edit');
+                setTimeout(onEditPinLocation, 350);
               }}
             >
               <Text style={styles.optionText}>Edit Pin Location</Text>
@@ -94,9 +101,22 @@ export function OptionsModal({
 
             <Pressable
               style={styles.optionRow}
-              onPress={() => {
+              onPress={async () => {
                 onClose();
-                Alert.alert('Reported', 'Thanks — this event has been flagged for review.');
+                if (!user) return;
+                try {
+                  const { error } = await supabase
+                    .from('reports')
+                    .insert({
+                      reporter_id: user.id,
+                      event_id: eventId,
+                      reason: 'user_reported',
+                    });
+                  if (error) throw error;
+                  Alert.alert('Reported', 'Thanks — this event has been flagged for review.');
+                } catch {
+                  Alert.alert('Error', 'Could not submit report. Please try again.');
+                }
               }}
             >
               <Text style={[styles.optionText, styles.optionDestructive]}>

@@ -6,6 +6,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { OverlayProvider } from 'stream-chat-expo';
 import { Colors } from '../constants/theme';
 import { supabase } from '../lib/supabase';
+import { streamClient } from '../lib/streamClient';
 import { useAuthStore } from '../stores/authStore';
 import type { Profile } from '../types';
 
@@ -56,7 +57,7 @@ export default function RootLayout() {
       return data;
     };
 
-    const fetchStreamToken = async (accessToken: string) => {
+    const fetchStreamToken = async (accessToken: string): Promise<string | null> => {
       console.log('[Stream] fetchStreamToken → invoking generate-stream-token...');
       try {
         const { data, error } = await supabase.functions.invoke('generate-stream-token', {
@@ -71,18 +72,20 @@ export default function RootLayout() {
 
         if (error) {
           console.error('[Stream] Edge Function returned an error:', error.message ?? JSON.stringify(error));
-          return;
+          return null;
         }
 
         if (typeof data?.token !== 'string' || data.token.length === 0) {
           console.error('[Stream] Token missing or invalid in response. Full data:', JSON.stringify(data));
-          return;
+          return null;
         }
 
         console.log('[Stream] Token received OK, length:', data.token.length);
         if (isMounted) setStreamToken(data.token);
+        return data.token;
       } catch (err) {
         console.error('[Stream] fetchStreamToken threw unexpectedly:', err);
+        return null;
       }
     };
 
@@ -100,14 +103,37 @@ if (session?.user) {
           setUser(session.user);
           setProfile(profileData);
 
-          // 3. Only fetch Stream token if they are actually done with setup.
-          // Pass the live access_token directly — avoids the race where
-          // getSession() could still return the previous user's token on
-          // a fast account-switch.
-          if (isProfileComplete(profileData) && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
-            await fetchStreamToken(session.access_token);
+          // 3. Fetch Stream token + connect when profile is complete.
+          // TOKEN_REFRESHED is included because Stream tokens now expire (24h) —
+          // when Supabase auto-refreshes the JWT, we also refresh the Stream token.
+          if (isProfileComplete(profileData) && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+            const token = await fetchStreamToken(session.access_token);
+            // Connect Stream user centrally — all chat screens rely on this.
+            if (token && isMounted) {
+              try {
+                if (!streamClient.userID) {
+                  await streamClient.connectUser(
+                    {
+                      id: session.user.id,
+                      name: profileData?.display_name ?? undefined,
+                      image: profileData?.avatar_url ?? undefined,
+                    },
+                    token,
+                  );
+                  console.log('[Stream] connectUser succeeded (root layout)');
+                }
+              } catch (err) {
+                console.error('[Stream] connectUser failed (root layout):', err);
+              }
+            }
           }
         } else {
+          // Disconnect Stream before clearing auth state
+          if (streamClient.userID) {
+            streamClient.disconnectUser().catch((err) =>
+              console.warn('[Stream] disconnectUser failed:', err),
+            );
+          }
           clearAuth();
         }
 
@@ -178,6 +204,7 @@ if (session?.user) {
             {setupComplete && <Stack.Screen name="(tabs)" />}
             <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
             <Stack.Screen name="event/[id]" />
+            <Stack.Screen name="event/edit-location" />
             <Stack.Screen name="user/[id]" />
             <Stack.Screen name="profile/edit" />
             <Stack.Screen name="profile/preview" />

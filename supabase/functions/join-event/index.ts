@@ -89,6 +89,21 @@ Deno.serve(async (req: Request) => {
     // 5. Stream Chat Sync
     const streamServer = StreamChat.getInstance(STREAM_API_KEY, STREAM_SECRET_KEY);
 
+    // Upsert the Stream user BEFORE any channel operations — prevents
+    // "user not found" errors (codes 4/17) when the client hasn't called
+    // connectUser yet or the Stream user was purged.
+    const { data: joinerProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('display_name, avatar_url')
+      .eq('id', user.id)
+      .single();
+
+    await streamServer.upsertUser({
+      id: user.id,
+      name: joinerProfile?.display_name ?? user.email ?? 'Traveler',
+      image: joinerProfile?.avatar_url ?? undefined,
+    });
+
     // Guard: Stream channel may not exist (e.g. after a dev DB wipe, or if
     // create-event's Stream call failed silently before the rollback path fired).
     const existingChannels = await streamServer.queryChannels(

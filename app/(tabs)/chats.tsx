@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,29 +9,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { ChannelList, Chat, OverlayProvider } from 'stream-chat-expo';
+import { ChannelList, Chat } from 'stream-chat-expo';
 import type { ChannelPreviewUIComponentProps } from 'stream-chat-expo';
 
 import { streamClient } from '../../lib/streamClient';
 import { useAuthStore } from '../../stores/authStore';
-import { Colors } from '../../constants/theme';
-
-// ─── Stream dark theme ────────────────────────────────────────────────────────
-
-const STREAM_THEME = {
-  colors: {
-    white: Colors.background,
-    white_snow: Colors.background,
-    bg_gradient_start: Colors.background,
-    bg_gradient_end: Colors.background,
-    grey_gainsboro: Colors.border,
-    grey_whisper: Colors.surface,
-    black: Colors.textPrimary,
-    grey: Colors.textTertiary,
-    grey_dark: Colors.textSecondary,
-    accent_blue: Colors.accent,
-  },
-};
+import { Colors, STREAM_THEME } from '../../constants/theme';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -188,75 +171,14 @@ const rowStyles = StyleSheet.create({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ChatsScreen() {
-  const { user, profile, streamToken } = useAuthStore();
+  const { user } = useAuthStore();
 
-  const [isConnecting, setIsConnecting] = useState(!streamClient.userID);
-  const [connectError, setConnectError] = useState<string | null>(null);
-  const cancelledRef = useRef(false);
+  // Stream client is connected centrally in _layout.tsx.
+  // If it's not connected yet, show a loading spinner.
+  const [ready] = useState(() => !!streamClient.userID);
 
-  // ── 5-second connection timeout ────────────────────────────────────────────
-  useEffect(() => {
-    if (!isConnecting) return;
-    const t = setTimeout(() => {
-      if (!cancelledRef.current) {
-        setIsConnecting(false);
-        setConnectError(
-          streamToken
-            ? 'Stream connection timed out. Check your EXPO_PUBLIC_STREAM_API_KEY value.'
-            : 'Stream token is null after 5 s. Check that generate-stream-token is deployed and STREAM_SECRET_KEY is set.',
-        );
-      }
-    }, 5_000);
-    return () => clearTimeout(t);
-  }, [isConnecting, streamToken]);
-
-  // ── Connect Stream client ──────────────────────────────────────────────────
-  useEffect(() => {
-    cancelledRef.current = false;
-
-    if (streamClient.userID) {
-      setIsConnecting(false);
-      return;
-    }
-
-    if (!streamToken) {
-      console.warn('[Chats] streamToken is null.', '| user:', user?.id ?? 'none');
-      return; // timeout above will surface the error after 5 s
-    }
-
-    if (!user || !profile) return;
-
-    console.log('[Chats] connectUser → userID:', user.id);
-
-    let cancelled = false;
-
-    const connect = async () => {
-      try {
-        await streamClient.connectUser(
-          { id: user.id, name: profile.display_name ?? undefined, image: profile.avatar_url ?? undefined },
-          streamToken,
-        );
-        console.log('[Chats] connectUser succeeded');
-        if (!cancelled) setIsConnecting(false);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error('[Chats] connectUser threw:', msg);
-        if (!cancelled) {
-          setConnectError(`Stream error: ${msg}`);
-          setIsConnecting(false);
-        }
-      }
-    };
-
-    connect();
-    return () => {
-      cancelled = true;
-      cancelledRef.current = true;
-    };
-  }, [user, profile, streamToken]);
-
-  // ── Loading ────────────────────────────────────────────────────────────────
-  if (isConnecting) {
+  // ── Not connected yet ──────────────────────────────────────────────────────
+  if (!ready && !streamClient.userID) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -270,7 +192,7 @@ export default function ChatsScreen() {
   }
 
   // ── Error ──────────────────────────────────────────────────────────────────
-  if (connectError || !user) {
+  if (!user) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -278,7 +200,7 @@ export default function ChatsScreen() {
         </View>
         <View style={styles.centeredFill}>
           <Text style={styles.errorLabel}>⚠️ Connection Failed</Text>
-          <Text style={styles.errorText}>{connectError ?? 'Not signed in.'}</Text>
+          <Text style={styles.errorText}>Not signed in.</Text>
         </View>
       </SafeAreaView>
     );
@@ -291,24 +213,22 @@ export default function ChatsScreen() {
         <Text style={styles.screenTitle}>Messages</Text>
       </View>
 
-      <OverlayProvider value={{ style: STREAM_THEME }}>
-        <Chat client={streamClient} style={STREAM_THEME}>
-          <ChannelList
-            filters={{ type: 'messaging', members: { $in: [user.id] } }}
-            sort={{ last_message_at: -1 }}
-            Preview={EventChannelPreview}
-            EmptyStateIndicator={() => (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyEmoji}>💬</Text>
-                <Text style={styles.emptyTitle}>No conversations yet</Text>
-                <Text style={styles.emptyBody}>
-                  Tap a pin on the map and join an event to start chatting.
-                </Text>
-              </View>
-            )}
-          />
-        </Chat>
-      </OverlayProvider>
+      <Chat client={streamClient} style={STREAM_THEME}>
+        <ChannelList
+          filters={{ type: 'messaging', members: { $in: [user.id] } }}
+          sort={{ last_message_at: -1 }}
+          Preview={EventChannelPreview}
+          EmptyStateIndicator={() => (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyEmoji}>💬</Text>
+              <Text style={styles.emptyTitle}>No conversations yet</Text>
+              <Text style={styles.emptyBody}>
+                Tap a pin on the map and join an event to start chatting.
+              </Text>
+            </View>
+          )}
+        />
+      </Chat>
     </SafeAreaView>
   );
 }

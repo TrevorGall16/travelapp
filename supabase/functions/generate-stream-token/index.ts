@@ -24,8 +24,9 @@ Deno.serve(async (req: Request) => {
 
   try {
     const streamServer = StreamChat.getInstance(STREAM_API_KEY, STREAM_SECRET_KEY);
-    // Create a secure token that does not expire automatically (standard for Stream UI kits)
-    const token = streamServer.createToken(user.id);
+    // Token expires in 24 hours — forces periodic refresh alongside Supabase session
+    const expiresAt = Math.floor(Date.now() / 1000) + (60 * 60 * 24);
+    const token = streamServer.createToken(user.id, expiresAt);
     return jsonResponse({ token });
   } catch (err) {
     console.error('[generate-stream-token] Error:', err);

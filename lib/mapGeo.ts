@@ -108,16 +108,32 @@ export type ClusterOutput =
 export function eventsToGeoFeatures(
   events: Event[],
 ): Supercluster.PointFeature<PinProperties>[] {
-  return events.map((e) => ({
-    type: 'Feature',
-    geometry: { type: 'Point', coordinates: [e.longitude, e.latitude] },
-    properties: {
-      eventId: e.id,
-      category: e.category,
-      title: e.title,
-      participantCount: e.participant_count,
-      expiresAt: e.expires_at,
-      hostVerified: false,
-    },
-  }));
+  // Jitter: offset co-located pins by ~1 m so they separate at high zoom
+  const seen = new Map<string, number>(); // "lat,lon" → count
+
+  return events.map((e) => {
+    const key = `${e.latitude},${e.longitude}`;
+    const count = seen.get(key) ?? 0;
+    seen.set(key, count + 1);
+
+    // Offset duplicates in a small spiral pattern (~1 m per step)
+    const jitterLat = count > 0 ? count * 0.00001 * Math.cos(count) : 0;
+    const jitterLon = count > 0 ? count * 0.00001 * Math.sin(count) : 0;
+
+    return {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [e.longitude + jitterLon, e.latitude + jitterLat],
+      },
+      properties: {
+        eventId: e.id,
+        category: e.category,
+        title: e.title,
+        participantCount: e.participant_count,
+        expiresAt: e.expires_at,
+        hostVerified: false,
+      },
+    };
+  });
 }

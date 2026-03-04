@@ -3,46 +3,8 @@
 import { StyleSheet } from 'react-native';
 import { Colors } from '../constants/theme';
 
-// ─── Stream dark theme ────────────────────────────────────────────────────────
-//
-// Color map for stream-chat-expo dark theme:
-//   white_snow     → message list background    (Colors.background)
-//   grey_whisper   → incoming message bubbles   (Colors.surface)
-//   blue_alice     → outgoing message bubbles   (Colors.accent)
-//   white          → message input background   (Colors.surface)
-//   black          → primary text               (Colors.textPrimary)
-//   grey           → secondary text             (Colors.textSecondary)
-//   grey_gainsboro → dividers / separators      (Colors.border)
-//   accent_blue    → links, selected states     (Colors.accent)
-
-export const STREAM_THEME = {
-  colors: {
-    white_snow: Colors.background,
-    bg_gradient_start: Colors.background,
-    bg_gradient_end: Colors.background,
-    grey_whisper: Colors.surface,
-    blue_alice: Colors.accent,
-    white: Colors.surface,
-    black: Colors.textPrimary,
-    grey: Colors.textSecondary,
-    grey_gainsboro: Colors.border,
-    accent_blue: Colors.accent,
-    targetedMessageBackground: Colors.border,
-  },
-  messageSimple: {
-    content: {
-      markdown: {
-        text: { color: Colors.textPrimary },
-        em: { color: Colors.textPrimary },
-        strong: { color: Colors.textPrimary },
-        link: { color: Colors.accent },
-      },
-      containerInner: {
-        backgroundColor: Colors.surface,
-      },
-    },
-  },
-};
+// STREAM_THEME is now centralized in constants/theme.ts
+export { STREAM_THEME } from '../constants/theme';
 
 // ─── MeetupBanner styles ──────────────────────────────────────────────────────
 

@@ -28,17 +28,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { countdownLabel } from '../../lib/eventFormatters';
 import { styles, SHEET_HEIGHT } from '../../styles/eventCardStyles';
 import type { Event, EventCategory } from '../../types';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const CATEGORY_EMOJI: Record<EventCategory, string> = {
-  beer: '🍺',
-  food: '🍜',
-  sightseeing: '🏛️',
-  adventure: '🧗',
-  culture: '🎭',
-  other: '📍',
-};
+import { CATEGORY_EMOJI } from '../../constants/categories';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

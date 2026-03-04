@@ -52,3 +52,37 @@ export const Colors = {
 } as const;
 
 export type ColorKey = keyof typeof Colors;
+
+// ─── Stream Chat Dark Theme (unified) ────────────────────────────────────────
+// Used by both the channel list (chats.tsx) and the chat screen ([id].tsx).
+// Kept here so every <Chat style={STREAM_THEME}> renders identically.
+
+export const STREAM_THEME = {
+  colors: {
+    white: Colors.surface,
+    white_snow: Colors.background,
+    bg_gradient_start: Colors.background,
+    bg_gradient_end: Colors.background,
+    grey_gainsboro: Colors.border,
+    grey_whisper: Colors.surface,
+    grey: Colors.textSecondary,
+    grey_dark: Colors.textSecondary,
+    black: Colors.textPrimary,
+    blue_alice: Colors.accent,
+    accent_blue: Colors.accent,
+    targetedMessageBackground: Colors.border,
+  },
+  messageSimple: {
+    content: {
+      markdown: {
+        text: { color: Colors.textPrimary },
+        em: { color: Colors.textPrimary },
+        strong: { color: Colors.textPrimary },
+        link: { color: Colors.accent },
+      },
+      containerInner: {
+        backgroundColor: Colors.surface,
+      },
+    },
+  },
+};
