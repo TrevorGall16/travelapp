@@ -178,7 +178,20 @@ export const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
 
-  // Custom user location dot
+  // Custom user location dot with sonar pulse
+  userDotContainer: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userDotPulse: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.accentSubtle,
+  },
   userDotOuter: {
     width: 26,
     height: 26,

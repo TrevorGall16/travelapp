@@ -12,22 +12,25 @@ export const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
 
-  // Sheet
+  // Sheet — semi-transparent to let BlurView show through
   sheet: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.surface,
+    backgroundColor: 'rgba(21,30,47,0.65)',
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.md,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 32,
     minHeight: 220,
     borderTopWidth: 1,
     borderColor: Colors.border,
+    overflow: 'hidden',
     ...Shadows.heavy,
+  },
+  blurFill: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 32,
   },
 
   // Drag handle

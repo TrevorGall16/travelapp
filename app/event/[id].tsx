@@ -674,12 +674,14 @@ return (
         )}
 
         {/* ── Stream Chat Container ── */}
-        {/* On iOS, Stream's KeyboardCompatibleView handles keyboard avoidance.
-            On Android, we wrap in KeyboardAvoidingView with behavior="padding"
-            because Stream's KCV is unreliable there. */}
+        {/* iOS: Stream's KeyboardCompatibleView handles avoidance natively.
+            Android: behavior="height" + offset tuned for header (56) + safe area.
+            "height" works better than "padding" on Android — it resizes the
+            container instead of adding bottom padding, which prevents the
+            MessageInput from getting pushed off-screen on short devices. */}
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? undefined : 'padding'}
+          behavior={Platform.OS === 'android' ? 'height' : undefined}
           keyboardVerticalOffset={Platform.OS === 'android' ? insets.top + 56 : 0}
         >
           <Chat client={streamClient} style={STREAM_THEME}>

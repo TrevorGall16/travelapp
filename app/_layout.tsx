@@ -59,34 +59,45 @@ export default function RootLayout() {
 
     const fetchStreamToken = async (accessToken: string): Promise<string | null> => {
       console.log('[Stream] fetchStreamToken → invoking generate-stream-token...');
-      try {
-        const { data, error } = await supabase.functions.invoke('generate-stream-token', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
 
-        console.log(
-          '[Stream] generate-stream-token raw response →',
-          'data:', JSON.stringify(data),
-          '| error:', JSON.stringify(error),
-        );
+      // Retry with exponential backoff — handles flaky travel WiFi
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const { data, error } = await supabase.functions.invoke('generate-stream-token', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
 
-        if (error) {
-          console.error('[Stream] Edge Function returned an error:', error.message ?? JSON.stringify(error));
+          if (error) {
+            console.error(`[Stream] Edge Function error (attempt ${attempt}):`, error.message ?? JSON.stringify(error));
+            if (attempt < maxAttempts) {
+              const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+              console.warn(`[Stream] Retrying fetchStreamToken in ${delay}ms...`);
+              await new Promise(r => setTimeout(r, delay));
+              continue;
+            }
+            return null;
+          }
+
+          if (typeof data?.token !== 'string' || data.token.length === 0) {
+            console.error('[Stream] Token missing or invalid in response. Full data:', JSON.stringify(data));
+            return null;
+          }
+
+          console.log('[Stream] Token received OK, length:', data.token.length);
+          if (isMounted) setStreamToken(data.token);
+          return data.token;
+        } catch (err) {
+          console.error(`[Stream] fetchStreamToken attempt ${attempt} threw:`, err);
+          if (attempt < maxAttempts) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
           return null;
         }
-
-        if (typeof data?.token !== 'string' || data.token.length === 0) {
-          console.error('[Stream] Token missing or invalid in response. Full data:', JSON.stringify(data));
-          return null;
-        }
-
-        console.log('[Stream] Token received OK, length:', data.token.length);
-        if (isMounted) setStreamToken(data.token);
-        return data.token;
-      } catch (err) {
-        console.error('[Stream] fetchStreamToken threw unexpectedly:', err);
-        return null;
       }
+      return null;
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -111,19 +122,39 @@ if (session?.user) {
             // Connect Stream user centrally — all chat screens rely on this.
             if (token && isMounted) {
               try {
+                const streamUserData = {
+                  id: session.user.id,
+                  name: profileData?.display_name ?? undefined,
+                  image: profileData?.avatar_url ?? undefined,
+                };
+
                 if (!streamClient.userID) {
-                  await streamClient.connectUser(
-                    {
-                      id: session.user.id,
-                      name: profileData?.display_name ?? undefined,
-                      image: profileData?.avatar_url ?? undefined,
-                    },
-                    token,
-                  );
-                  console.log('[Stream] connectUser succeeded (root layout)');
+                  // Retry with exponential backoff for poor-wifi scenarios
+                  let attempt = 0;
+                  const maxAttempts = 3;
+                  while (attempt < maxAttempts) {
+                    try {
+                      await streamClient.connectUser(streamUserData, token);
+                      console.log('[Stream] connectUser succeeded (root layout)');
+                      break;
+                    } catch (connectErr) {
+                      attempt++;
+                      if (attempt >= maxAttempts) throw connectErr;
+                      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
+                      console.warn(`[Stream] connectUser attempt ${attempt} failed, retrying in ${delay}ms`);
+                      await new Promise(r => setTimeout(r, delay));
+                    }
+                  }
+                }
+
+                // Strict Sync: upsertUser on every boot to guarantee
+                // Stream always has the latest name + avatar.
+                if (streamClient.userID && isMounted) {
+                  await streamClient.upsertUser(streamUserData);
+                  console.log('[Stream] upsertUser strict sync done');
                 }
               } catch (err) {
-                console.error('[Stream] connectUser failed (root layout):', err);
+                console.error('[Stream] connectUser/upsertUser failed (root layout):', err);
               }
             }
           }
@@ -154,7 +185,7 @@ if (session?.user) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Keep Stream user in sync when profile changes (e.g. Edit Profile) ───
+  // ── Strict Sync: upsertUser whenever profile changes (e.g. Edit Profile) ─
   useEffect(() => {
     if (!profile || !streamClient.userID) return;
     const current = streamClient.user;
@@ -163,12 +194,14 @@ if (session?.user) {
       current?.image !== profile.avatar_url
     ) {
       streamClient
-        .partialUpdateUser({
+        .upsertUser({
           id: streamClient.userID,
-          set: { name: profile.display_name, image: profile.avatar_url },
+          name: profile.display_name ?? undefined,
+          image: profile.avatar_url ?? undefined,
         })
+        .then(() => console.log('[Stream] upsertUser profile sync done'))
         .catch((err) =>
-          console.warn('[Stream] partialUpdateUser sync failed:', err),
+          console.warn('[Stream] upsertUser sync failed:', err),
         );
     }
   }, [profile]);

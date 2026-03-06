@@ -36,11 +36,12 @@ async function fetchValidEventIds(userId: string): Promise<Set<string>> {
     const eventIds = data.map((r: { event_id: string }) => r.event_id);
     if (eventIds.length === 0) return new Set();
 
-    // Verify these events actually exist and are not soft-deleted
+    // Verify these events actually exist AND are still active
     const { data: existingEvents } = await supabase
       .from('events')
       .select('id')
-      .in('id', eventIds);
+      .in('id', eventIds)
+      .eq('status', 'active');
 
     return new Set((existingEvents ?? []).map((e: { id: string }) => e.id));
   } catch {

@@ -21,6 +21,7 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 
@@ -331,6 +332,11 @@ export default function EventCard({ event, onDismiss }: Props) {
         pointerEvents={displayEvent ? 'auto' : 'none'}
         style={[styles.sheet, { transform: [{ translateY }] }]}
       >
+        <BlurView
+          intensity={80}
+          tint="systemMaterialDark"
+          style={styles.blurFill}
+        >
         {displayEvent && (
           <>
             {/* Drag handle */}
@@ -460,6 +466,7 @@ export default function EventCard({ event, onDismiss }: Props) {
             </Pressable>
           </>
         )}
+        </BlurView>
       </Animated.View>
     </>
   );

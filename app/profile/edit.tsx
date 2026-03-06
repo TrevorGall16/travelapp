@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -187,30 +188,36 @@ export default function EditProfileScreen() {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* ── Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
-          <Text style={styles.backLabel}>Profile</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>Edit Profile</Text>
-
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={[styles.saveBtn, isSubmitting && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={isSubmitting}
-            activeOpacity={0.8}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color={Colors.white} />
-            ) : (
-              <Text style={styles.saveText}>Save</Text>
-            )}
+      {/* ── Header (Glassmorphism) ── */}
+      <BlurView
+        intensity={80}
+        tint="systemMaterialDark"
+        style={[styles.headerBlur, { paddingTop: insets.top + 10 }]}
+      >
+        <View style={styles.headerInner}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+            <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+            <Text style={styles.backLabel}>Profile</Text>
           </TouchableOpacity>
+
+          <Text style={styles.headerTitle}>Edit Profile</Text>
+
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={[styles.saveBtn, isSubmitting && styles.saveBtnDisabled]}
+              onPress={handleSave}
+              disabled={isSubmitting}
+              activeOpacity={0.8}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <Text style={styles.saveText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </BlurView>
 
       <ScrollView
         style={styles.scroll}
@@ -414,15 +421,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
 
-  // ── Header ──────────────────────────────────────────────────
-  header: {
+  // ── Header (Glassmorphism) ───────────────────────────────────
+  headerBlur: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  headerInner: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 14,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
   },
   backBtn: {
     flex: 1,

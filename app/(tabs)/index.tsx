@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
+  Animated as RNAnimated,
   Linking,
   Modal,
   Platform,
@@ -80,6 +81,29 @@ export default function MapScreen() {
   const [stackedEventIds, setStackedEventIds] = useState<string[]>([]);
   // Flips true after onMapReady + requestAnimationFrame, proving tiles can render.
   const [tilesLoaded, setTilesLoaded] = useState(false);
+
+  // ── Sonar pulse animation ──────────────────────────────────────────────────
+  const pulseAnim = useRef(new RNAnimated.Value(0)).current;
+  useEffect(() => {
+    const loop = RNAnimated.loop(
+      RNAnimated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
+
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.3],
+  });
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
 
   const mapRef = useRef<MapView>(null);
   const lastFetchRef = useRef<{ latitude: number; longitude: number } | null>(
@@ -635,15 +659,26 @@ export default function MapScreen() {
         >
           {tilesLoaded && renderedMarkers}
 
-          {/* Custom user location dot */}
+          {/* Custom user location dot with sonar pulse */}
           {tilesLoaded && coordinates && (
             <Marker
               coordinate={coordinates}
               anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={false}
+              tracksViewChanges={true}
             >
-              <View style={styles.userDotOuter}>
-                <View style={styles.userDotInner} />
+              <View style={styles.userDotContainer}>
+                <RNAnimated.View
+                  style={[
+                    styles.userDotPulse,
+                    {
+                      transform: [{ scale: pulseScale }],
+                      opacity: pulseOpacity,
+                    },
+                  ]}
+                />
+                <View style={styles.userDotOuter}>
+                  <View style={styles.userDotInner} />
+                </View>
               </View>
             </Marker>
           )}

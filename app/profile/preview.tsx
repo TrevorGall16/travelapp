@@ -17,6 +17,7 @@ import { ChevronLeft, X } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
 import { Colors, Radius, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../stores/authStore';
+import Gallery from '../../components/profile/Gallery';
 
 const AVATAR_SIZE = 108;
 const AVATAR_RING = 3;
@@ -86,25 +87,11 @@ export default function ProfilePreviewScreen() {
           ) : null}
         </View>
 
-        {/* ── Photo Gallery ── */}
+        {/* ── Photo Gallery (Tactile swipe) ── */}
         {hasPhotos ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Photos</Text>
-            <View style={styles.photoGrid}>
-              {photoUrls.map((url, i) => (
-                <TouchableOpacity
-                  key={`${url}-${i}`}
-                  activeOpacity={0.85}
-                  onPress={() => setPreviewUri(url)}
-                >
-                  <Image
-                    source={{ uri: url }}
-                    style={styles.galleryThumb}
-                    contentFit="cover"
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Gallery photos={photoUrls} />
           </View>
         ) : null}
 
