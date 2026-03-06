@@ -67,8 +67,10 @@ export default function MapScreen() {
   const { profile } = useAuthStore();
   const { coordinates, city, setCoordinates, setPermissionStatus, setCity } =
     useLocationStore();
-  const { events, mapKey, setEvents, addEvent, updateEvent, removeEvent } =
-    useMapStore();
+  const {
+    events, mapKey, setEvents, addEvent, updateEvent, removeEvent,
+    blockedUserIds, setBlockedUserIds, getVisibleEvents,
+  } = useMapStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -417,19 +419,37 @@ export default function MapScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Fetch blocked user IDs (for pin filtering) ───────────────────────────
+  useEffect(() => {
+    const { user } = useAuthStore.getState();
+    if (!user) return;
+    supabase
+      .from('user_blocks')
+      .select('blocked_id')
+      .eq('blocker_id', user.id)
+      .then(({ data }) => {
+        if (data) {
+          setBlockedUserIds(new Set(data.map((r: { blocked_id: string }) => r.blocked_id)));
+        }
+      });
+  }, [setBlockedUserIds]);
+
+  // Use filtered events for rendering (hides blocked users' pins)
+  const visibleEvents = getVisibleEvents();
+
   // Recompute clusters whenever the event list or visible region changes
   useEffect(() => {
-    if (region) recomputeClusters(region, events, mapKey);
-  }, [events, region, mapKey, recomputeClusters]);
+    if (region) recomputeClusters(region, visibleEvents, mapKey);
+  }, [visibleEvents, region, mapKey, recomputeClusters]);
 
   // ── Event handlers ────────────────────────────────────────────────────────
 
   const handleRegionChangeComplete = useCallback(
     (newRegion: Region) => {
       setRegion(newRegion);
-      recomputeClusters(newRegion, events, mapKey);
+      recomputeClusters(newRegion, visibleEvents, mapKey);
     },
-    [events, mapKey, recomputeClusters],
+    [visibleEvents, mapKey, recomputeClusters],
   );
 
   const handleClusterPress = useCallback(
@@ -470,10 +490,10 @@ export default function MapScreen() {
 
   const handlePinPress = useCallback(
     (eventId: string) => {
-      const found = events.find((e) => e.id === eventId) ?? null;
+      const found = visibleEvents.find((e) => e.id === eventId) ?? null;
       setSelectedEvent(found);
     },
-    [events],
+    [visibleEvents],
   );
 
   const handleRecenter = useCallback(() => {
@@ -686,7 +706,7 @@ export default function MapScreen() {
       </View>
 
       {/* Empty state */}
-      {events.length === 0 && (
+      {visibleEvents.length === 0 && (
         <View style={styles.emptyBanner} pointerEvents="none">
           <Text style={styles.emptyText}>
             Nothing nearby yet. Drop the first pin.
@@ -755,7 +775,7 @@ export default function MapScreen() {
             {stackedEventIds.length} events here
           </Text>
           {stackedEventIds.map((id) => {
-            const ev = events.find((e) => e.id === id);
+            const ev = visibleEvents.find((e) => e.id === id);
             if (!ev) return null;
             return (
               <Pressable

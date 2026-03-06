@@ -9,6 +9,8 @@ interface MapFilters {
 interface MapState {
   events: Event[];
   filters: MapFilters;
+  /** Set of user IDs the current user has blocked. Pins from these users are hidden. */
+  blockedUserIds: Set<string>;
   /** Monotonic counter — incremented on every event mutation to force supercluster rebuild. */
   mapKey: number;
   setEvents: (events: Event[]) => void;
@@ -16,11 +18,15 @@ interface MapState {
   updateEvent: (event: Event) => void;
   removeEvent: (id: string) => void;
   setFilters: (partial: Partial<MapFilters>) => void;
+  setBlockedUserIds: (ids: Set<string>) => void;
+  /** Returns events filtered by blocked users. Use this for rendering. */
+  getVisibleEvents: () => Event[];
 }
 
-export const useMapStore = create<MapState>()((set) => ({
+export const useMapStore = create<MapState>()((set, get) => ({
   events: [],
   filters: { radius: 5000, category: null },
+  blockedUserIds: new Set(),
   mapKey: 0,
 
   setEvents: (events) => set((state) => ({ events, mapKey: state.mapKey + 1 })),
@@ -45,4 +51,12 @@ export const useMapStore = create<MapState>()((set) => ({
 
   setFilters: (partial) =>
     set((state) => ({ filters: { ...state.filters, ...partial } })),
+
+  setBlockedUserIds: (ids) => set({ blockedUserIds: ids, mapKey: get().mapKey + 1 }),
+
+  getVisibleEvents: () => {
+    const { events, blockedUserIds } = get();
+    if (blockedUserIds.size === 0) return events;
+    return events.filter((e) => !blockedUserIds.has(e.host_id));
+  },
 }));

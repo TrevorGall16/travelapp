@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -11,27 +12,75 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, MessageCircle } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
+import { streamClient } from '../../lib/streamClient';
+import {
+  checkConnectionStatus,
+  sendConnectionRequest,
+  acceptConnectionRequest,
+  type ConnectionStatus,
+} from '../../lib/social';
+import { useAuthStore } from '../../stores/authStore';
 import { COUNTRIES } from '../../constants/countries';
-import { Colors } from '../../constants/theme';
+import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
 import type { Profile } from '../../types/index';
 
 const AVATAR_SIZE = 120;
 const AVATAR_RING = 3;
 
+/** Build a deterministic DM channel ID from two user IDs (sorted). */
+function dmChannelId(a: string, b: string): string {
+  const sorted = [a, b].sort();
+  return `dm_${sorted[0]}_${sorted[1]}`;
+}
+
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user: currentUser, profile: myProfile } = useAuthStore();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [isOpeningDM, setIsOpeningDM] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('none');
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  // Fetch connection status
+  useEffect(() => {
+    if (!currentUser || !id || id === currentUser.id) return;
+    checkConnectionStatus(currentUser.id, id).then(setConnectionStatus);
+  }, [currentUser, id]);
+
+  const handleConnect = async () => {
+    if (!currentUser || !id || isConnecting) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsConnecting(true);
+    try {
+      if (connectionStatus === 'none') {
+        const result = await sendConnectionRequest(currentUser.id, id);
+        if (result.ok) setConnectionStatus('pending_sent');
+        else Alert.alert('Error', result.error ?? 'Could not send request.');
+      } else if (connectionStatus === 'pending_received') {
+        const result = await acceptConnectionRequest(currentUser.id, id);
+        if (result.ok) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setConnectionStatus('accepted');
+        } else {
+          Alert.alert('Error', result.error ?? 'Could not accept request.');
+        }
+      }
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) { setNotFound(true); setIsLoading(false); return; }
@@ -61,6 +110,41 @@ export default function UserProfileScreen() {
     fetchProfile();
     return () => { isMounted = false; };
   }, [id]);
+
+  // ── Open / create DM channel ────────────────────────────────────────────────
+  const handleOpenDM = async () => {
+    if (!currentUser || !id || !profile || isOpeningDM) return;
+    if (id === currentUser.id) return; // can't DM yourself
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsOpeningDM(true);
+
+    try {
+      if (!streamClient.userID) {
+        Alert.alert('Chat Unavailable', 'Chat is still connecting. Try again in a moment.');
+        return;
+      }
+
+      const channelId = dmChannelId(currentUser.id, id);
+      const channel = streamClient.channel('messaging', channelId, {
+        members: [currentUser.id, id],
+        name: `${myProfile?.display_name ?? 'You'} & ${profile.display_name ?? 'Traveler'}`,
+      });
+
+      // watch() creates the channel if it doesn't exist, or joins if it does
+      await channel.watch();
+
+      // Navigate to the DM chat — reuse the event chat screen with the channel ID
+      router.push(`/dm/${channelId}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not open chat.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsOpeningDM(false);
+    }
+  };
+
+  const isSelf = currentUser?.id === id;
 
   // ── Derived display data ────────────────────────────────────────────────────
   const homeCountry = COUNTRIES.find(c => c.code === profile?.country_code);
@@ -166,6 +250,55 @@ export default function UserProfileScreen() {
             </View>
           ) : null}
         </View>
+
+        {/* ── Connection + Message Buttons ── */}
+        {!isSelf && (
+          <View style={styles.actionRow}>
+            {/* Connection handshake button */}
+            {connectionStatus === 'accepted' ? (
+              <TouchableOpacity
+                style={[styles.messageBtn, isOpeningDM && styles.messageBtnLoading]}
+                onPress={handleOpenDM}
+                disabled={isOpeningDM}
+                activeOpacity={0.8}
+              >
+                {isOpeningDM ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <>
+                    <MessageCircle size={18} color={Colors.white} strokeWidth={2.5} />
+                    <Text style={styles.messageBtnText}>Message</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.connectBtn,
+                  connectionStatus === 'pending_sent' && styles.connectBtnPending,
+                  connectionStatus === 'pending_received' && styles.connectBtnAccept,
+                  isConnecting && styles.messageBtnLoading,
+                ]}
+                onPress={handleConnect}
+                disabled={isConnecting || connectionStatus === 'pending_sent'}
+                activeOpacity={0.8}
+              >
+                {isConnecting ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={[
+                    styles.connectBtnText,
+                    connectionStatus === 'pending_sent' && styles.connectBtnTextPending,
+                  ]}>
+                    {connectionStatus === 'none' && 'Connect'}
+                    {connectionStatus === 'pending_sent' && 'Sent'}
+                    {connectionStatus === 'pending_received' && 'Accept'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* ── About ── */}
         <View style={styles.card}>
@@ -381,6 +514,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: Colors.accent,
+  },
+
+  // ── Action Row (Connect / Message) ──────────────────────────────────────────
+  actionRow: {
+    gap: 10,
+  },
+  messageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.accent,
+    borderRadius: Radius.md,
+    paddingVertical: 14,
+    ...Shadows.accentGlow,
+  },
+  messageBtnLoading: {
+    opacity: 0.6,
+  },
+  messageBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  connectBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.accent,
+    borderRadius: Radius.md,
+    paddingVertical: 14,
+    ...Shadows.accentGlow,
+  },
+  connectBtnPending: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  connectBtnAccept: {
+    backgroundColor: Colors.success,
+  },
+  connectBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  connectBtnTextPending: {
+    color: Colors.textTertiary,
   },
 
   // ── Cards ──────────────────────────────────────────────────────────────────

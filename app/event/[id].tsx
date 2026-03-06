@@ -19,12 +19,15 @@ import {
   Chat,
   MessageInput,
   MessageList,
+  MessageSimple,
+  useMessageContext,
 } from 'stream-chat-expo';
-import type { Channel as StreamChannel } from 'stream-chat';
+import type { Channel as StreamChannel, MessageResponse, MessageType } from 'stream-chat';
 
 import { supabase } from '../../lib/supabase';
 import { streamClient } from '../../lib/streamClient';
 import { useAuthStore } from '../../stores/authStore';
+import { useBlockedUsers } from '../../hooks/useBlockedUsers';
 import { Colors } from '../../constants/theme';
 import { styles, STREAM_THEME } from '../../styles/eventChatStyles';
 import { MeetupBanner } from '../../components/chat/MeetupBanner';
@@ -58,6 +61,31 @@ const MOCK_MEMBERS: MemberEntry[] = [
   { user: { id: 'mock-user-hiroshi', name: 'Hiroshi (Japan)',    image: null } },
   { user: { id: 'mock-user-elena',   name: 'Elena (Italy)',      image: null } },
 ];
+
+// ─── Custom Message Actions ──────────────────────────────────────────────────
+// Adds a "Report Message" option to the long-press menu.
+// React and Reply are enabled by default via the Channel props below.
+
+async function reportMessageToSupabase(
+  reporterId: string,
+  message: MessageResponse,
+  channelId: string,
+) {
+  try {
+    const { error } = await supabase.from('reports').insert({
+      reporter_id: reporterId,
+      reported_user_id: message.user?.id ?? null,
+      message_id: message.id,
+      channel_id: channelId,
+      reason: 'inappropriate',
+    });
+    if (error) throw error;
+    Alert.alert('Reported', 'Thanks for flagging this. We\'ll take a look.');
+  } catch (err) {
+    Alert.alert('Error', 'Could not submit report. Try again later.');
+    console.error('[Report] insert failed:', err);
+  }
+}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -111,6 +139,17 @@ export default function EventChatScreen() {
 
   const isHost = user?.id === eventHostId;
 
+  // ── Blocked users — hide their messages in the chat ─────────────────────
+  const blockedUserIds = useBlockedUsers();
+  const BlockFilteredMessage = useCallback(
+    (props: any) => {
+      if (blockedUserIds.size > 0 && blockedUserIds.has(props.message?.user?.id)) {
+        return null;
+      }
+      return <MessageSimple {...props} />;
+    },
+    [blockedUserIds],
+  );
 
   // ── 5-second timeout: surface the error instead of spinning forever ────────
   useEffect(() => {
@@ -688,6 +727,33 @@ return (
             <Channel
               channel={streamChannel}
               disableKeyboardCompatibleView={Platform.OS === 'android'}
+              enableMessageReactions
+              enableMessageReplies
+              Message={BlockFilteredMessage}
+              messageActions={({ message, dismissOverlay }) => {
+                const actions = [
+                  // Built-in actions (React / Reply) are handled by the
+                  // enableMessageReactions + enableMessageReplies props above.
+                  // This callback adds custom actions to the overlay menu.
+                  {
+                    title: 'Report',
+                    icon: undefined,
+                    action: () => {
+                      dismissOverlay();
+                      if (user && message) {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                        reportMessageToSupabase(
+                          user.id,
+                          message as MessageResponse,
+                          `event_${eventId}`,
+                        );
+                      }
+                    },
+                    titleStyle: { color: Colors.error },
+                  },
+                ];
+                return actions;
+              }}
             >
               <MessageList noGroupByUser showUserAvatars />
 

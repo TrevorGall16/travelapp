@@ -257,6 +257,7 @@ if (session?.user) {
             <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
             <Stack.Screen name="event/[id]" />
             <Stack.Screen name="event/edit-location" />
+            <Stack.Screen name="dm/[id]" />
             <Stack.Screen name="user/[id]" />
             <Stack.Screen name="profile/edit" />
             <Stack.Screen name="profile/preview" />
