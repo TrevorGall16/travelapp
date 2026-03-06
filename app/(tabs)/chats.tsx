@@ -1,20 +1,60 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { ChannelList, Chat } from 'stream-chat-expo';
 import type { ChannelPreviewUIComponentProps } from 'stream-chat-expo';
 
 import { streamClient } from '../../lib/streamClient';
+import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
-import { Colors, STREAM_THEME } from '../../constants/theme';
+import { Colors, Radius, Spacing, STREAM_THEME } from '../../constants/theme';
+import { purgeGhostChannels } from '../../lib/streamCleanup';
+
+// ─── Ghost Channel Purge ─────────────────────────────────────────────────────
+// Cross-references Stream channels with Supabase events.
+// Channels whose events are missing/deleted are hidden immediately and
+// cleaned up in the background via Stream's channel.delete().
+
+async function fetchValidEventIds(userId: string): Promise<Set<string>> {
+  try {
+    const { data, error } = await supabase
+      .from('event_participants')
+      .select('event_id')
+      .eq('user_id', userId);
+
+    if (error || !data) return new Set();
+
+    const eventIds = data.map((r: { event_id: string }) => r.event_id);
+    if (eventIds.length === 0) return new Set();
+
+    // Verify these events actually exist and are not soft-deleted
+    const { data: existingEvents } = await supabase
+      .from('events')
+      .select('id')
+      .in('id', eventIds);
+
+    return new Set((existingEvents ?? []).map((e: { id: string }) => e.id));
+  } catch {
+    return new Set();
+  }
+}
+
+function backgroundDeleteChannel(channelId: string) {
+  // Fire-and-forget: remove the ghost channel from Stream
+  const ch = streamClient.channel('messaging', channelId);
+  ch.delete().catch((err) => {
+    console.warn('[GhostPurge] Failed to delete channel:', channelId, err);
+  });
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -29,14 +69,24 @@ function relativeTime(date?: string | Date | null): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-// ─── Custom channel preview row ───────────────────────────────────────────────
+// ─── Custom channel preview row ──────────────────────────────────────────────
 
-function EventChannelPreview(props: ChannelPreviewUIComponentProps) {
+function EventChannelPreview(
+  props: ChannelPreviewUIComponentProps & { validEventIds?: Set<string> },
+) {
   const router = useRouter();
-  const { channel, latestMessagePreview, unreadCount } = props;
+  const { channel, latestMessagePreview, unreadCount, validEventIds } = props;
 
   const rawId = channel.id ?? '';
   const eventId = rawId.startsWith('event_') ? rawId.slice('event_'.length) : rawId;
+
+  // ── Ghost check: hide channels for deleted/missing events ──
+  if (validEventIds && validEventIds.size > 0 && !validEventIds.has(eventId)) {
+    // Trigger background cleanup on first render of this ghost
+    backgroundDeleteChannel(rawId);
+    return null;
+  }
+
   const channelName = (channel.data?.name as string | undefined) ?? 'Event Chat';
   const avatarUrl = channel.data?.image as string | undefined;
 
@@ -96,36 +146,34 @@ const rowStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    gap: 13,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 14,
+    gap: 14,
     backgroundColor: Colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   rowPressed: {
     backgroundColor: Colors.surface,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: Colors.border,
     flexShrink: 0,
   },
   avatarFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.surface,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
     borderColor: Colors.border,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
   },
-  avatarEmoji: { fontSize: 22 },
-  body: { flex: 1, gap: 3 },
+  avatarEmoji: { fontSize: 24 },
+  body: { flex: 1, gap: 4 },
   top: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -134,31 +182,34 @@ const rowStyles = StyleSheet.create({
   },
   name: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.textPrimary,
+    letterSpacing: -0.2,
   },
   time: {
     fontSize: 12,
     color: Colors.textTertiary,
+    fontWeight: '500',
     flexShrink: 0,
   },
   preview: {
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.textSecondary,
+    lineHeight: 20,
   },
   previewUnread: {
     color: Colors.textPrimary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   badge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: Colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     flexShrink: 0,
   },
   badgeText: {
@@ -168,16 +219,26 @@ const rowStyles = StyleSheet.create({
   },
 });
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function ChatsScreen() {
   const { user } = useAuthStore();
+  const [validEventIds, setValidEventIds] = useState<Set<string>>(new Set());
+
+  // Fetch valid event IDs on mount + every focus to catch newly deleted events
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      fetchValidEventIds(user.id).then(setValidEventIds);
+      // Proactive cleanup: delete Stream channels for events that no longer exist
+      purgeGhostChannels();
+    }, [user]),
+  );
 
   // Stream client is connected centrally in _layout.tsx.
-  // If it's not connected yet, show a loading spinner.
   const [ready] = useState(() => !!streamClient.userID);
 
-  // ── Not connected yet ──────────────────────────────────────────────────────
+  // ── Not connected yet ────────────────────────────────────────────────────
   if (!ready && !streamClient.userID) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -191,7 +252,7 @@ export default function ChatsScreen() {
     );
   }
 
-  // ── Error ──────────────────────────────────────────────────────────────────
+  // ── Error ────────────────────────────────────────────────────────────────
   if (!user) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -199,14 +260,14 @@ export default function ChatsScreen() {
           <Text style={styles.screenTitle}>Messages</Text>
         </View>
         <View style={styles.centeredFill}>
-          <Text style={styles.errorLabel}>⚠️ Connection Failed</Text>
+          <Text style={styles.errorLabel}>Connection Failed</Text>
           <Text style={styles.errorText}>Not signed in.</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // ── Main ──────────────────────────────────────────────────────────────────
+  // ── Main ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -217,7 +278,9 @@ export default function ChatsScreen() {
         <ChannelList
           filters={{ type: 'messaging', members: { $in: [user.id] } }}
           sort={{ last_message_at: -1 }}
-          Preview={EventChannelPreview}
+          Preview={(previewProps) => (
+            <EventChannelPreview {...previewProps} validEventIds={validEventIds} />
+          )}
           EmptyStateIndicator={() => (
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>💬</Text>
@@ -233,7 +296,7 @@ export default function ChatsScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
@@ -241,17 +304,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
   screenTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: Colors.textPrimary,
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
   },
   centeredFill: {
     flex: 1,
@@ -267,7 +330,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   errorText: {
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
@@ -282,14 +345,14 @@ const styles = StyleSheet.create({
   },
   emptyEmoji: { fontSize: 52 },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: Colors.textPrimary,
   },
   emptyBody: {
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.textTertiary,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
   },
 });

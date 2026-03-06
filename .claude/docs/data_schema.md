@@ -3,7 +3,10 @@
 **For:** Builder AI  
 **Project:** Solo Travel Social App (NomadMeet - Working Title)  
 **Purpose:** Define the exact PostgreSQL tables, enums, extensions, and triggers required in Supabase. The Builder AI must execute this exact SQL to initialize the database.
-
+> **Builder Protocol (4.6):**
+> 1. **Effort Level:** use **High Effort (ultrathink)** for SQL migrations or PostGIS RPC changes.
+> 2. **Verification:** Before running SQL, state your **Success Criteria** (e.g., "The RPC should return only events within exactly 5000m").
+> 3. **Flexibility Override:** If a specific PostGIS function (like `ST_DWithin`) is causing a performance lag on a specific device, you are authorized to propose a more performant alternative logic.
 ---
 
 ## 1. EXTENSIONS & ENUMS

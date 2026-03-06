@@ -14,7 +14,8 @@
 1. **Enable RLS Everywhere:** Every single table must have RLS enabled.
 2. **Client vs. Server:** The client app (using the `anon` key) is heavily restricted by these policies. Supabase Edge Functions (using the `SERVICE_ROLE_KEY`) bypass these policies entirely to perform administrative actions (like event expiry and account deletion).
 3. **No Soft Deletes by Users:** Users cannot delete their own events directly from the client. They must call the `delete-event` Edge Function to ensure the Stream.io channel is also destroyed securely.
-
+4. **The Security Escape Hatch:** If an RLS policy is causing a fatal frontend "Permission Denied" error that blocks a core feature (like the Map or Chat), the Builder is authorized to temporarily simplify the policy to achieve functionality, provided they flag it for a High-Effort security review in the next turn.
+5. **Direct Feedback:** Respond directly with the corrected SQL without preambles like "I've updated the policy".
 ---
 
 ## 2. ENABLE RLS
@@ -164,7 +165,9 @@ ON blocks FOR DELETE USING (auth.uid() = blocker_id);
 To ensure blocked users do not appear on the map or in Explore feeds, the Builder AI must append this logic to client-side RPC calls or queries, or handle it via Zustand filtering using the user's downloaded block list.
 
 *Constraint:* The PostGIS RPC function `get_events_within_radius` should ideally be modified by the Builder AI to exclude events where the `host_id` is in the user's block list.
-
+## 8. RLS VALIDATION LOOP (NEW)
+* **Verify Before Shipping:** After creating any policy, spawn a **Subagent (Explore type)** to verify: "Can User A see User B's blocked data with this policy?".
+* **No Manual Testing:** Do not ask the user to "try it now." Use the `code_execution` tool to simulate the database environment and verify the logic path if possible.
 ---
 
 *End of Security and RLS Document*

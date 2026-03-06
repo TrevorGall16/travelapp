@@ -1,3 +1,6 @@
+import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -12,13 +15,31 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Plus, X } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
-import { Colors } from '../../constants/theme';
+import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
+import { uploadProfilePhoto } from '../../lib/uploadAvatar';
 import { useAuthStore } from '../../stores/authStore';
 
 // ── Static data ────────────────────────────────────────────────────────────
+
+const MAX_PHOTOS = 4;
+
+const PERSONA_TAGS = [
+  'Foodie',
+  'Night Owl',
+  'Early Bird',
+  'History Nerd',
+  'Party Starter',
+  'Solo Explorer',
+  'Photographer',
+  'Gym Rat',
+  'Bookworm',
+  'Live Music',
+  'Coffee Snob',
+  'Surfer',
+];
 
 const TRAVEL_STYLES = [
   'Digital Nomad',
@@ -43,55 +64,122 @@ function toggle(arr: string[], item: string): string[] {
   return arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
 }
 
+// ── Photo item types ───────────────────────────────────────────────────────
+
+interface PhotoItem {
+  uri: string;
+  isLocal: boolean; // true = picked from device, needs upload
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function EditProfileScreen() {
-  const { profile, setProfile } = useAuthStore();
+  const { profile, setProfile, user } = useAuthStore();
   const insets = useSafeAreaInsets();
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
   const [igHandle, setIgHandle] = useState(profile?.instagram_handle ?? '');
+  const [personaTags, setPersonaTags] = useState<string[]>(profile?.persona_tags ?? []);
   const [travelStyles, setTravelStyles] = useState<string[]>(profile?.travel_styles ?? []);
   const [languages, setLanguages] = useState<string[]>(profile?.languages ?? []);
   const [visitedCountries, setVisitedCountries] = useState<string[]>(profile?.visited_countries ?? []);
 
+  // Photos — seed from existing profile photo_urls
+  const [photos, setPhotos] = useState<PhotoItem[]>(
+    () => (profile?.photo_urls ?? []).map(uri => ({ uri, isLocal: false })),
+  );
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // ── Photo picker ─────────────────────────────────────────────────────────
+
+  const pickPhotos = async () => {
+    if (photos.length >= MAX_PHOTOS) return;
+
+    const remaining = MAX_PHOTOS - photos.length;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.8,
+    });
+
+    if (result.canceled || result.assets.length === 0) return;
+
+    const newPhotos: PhotoItem[] = result.assets
+      .slice(0, remaining)
+      .map(asset => ({ uri: asset.uri, isLocal: true }));
+
+    setPhotos(prev => [...prev, ...newPhotos]);
+  };
+
+  const removePhoto = (index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // ── Save ─────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
-    if (!profile) return;
+    if (!profile || !user) return;
 
     if (!displayName.trim()) {
       setError('Display name cannot be empty.');
       return;
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsSubmitting(true);
     setError(null);
 
-    const { data, error: dbError } = await supabase
-      .from('profiles')
-      .update({
-        display_name: displayName.trim(),
-        bio: bio.trim() || null,
-        instagram_handle: igHandle.trim().replace(/^@/, '') || null,
-        travel_styles: travelStyles,
-        languages,
-        visited_countries: visitedCountries,
-      })
-      .eq('id', profile.id)
-      .select()
-      .single();
+    try {
+      // Upload any new local photos
+      const finalUrls: string[] = [];
+      for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        if (photo.isLocal) {
+          setUploadingPhoto(true);
+          const url = await uploadProfilePhoto(photo.uri, user.id, i);
+          finalUrls.push(url);
+        } else {
+          finalUrls.push(photo.uri);
+        }
+      }
+      setUploadingPhoto(false);
 
-    if (dbError) {
-      setError(dbError.message);
+      const { data, error: dbError } = await supabase
+        .from('profiles')
+        .update({
+          display_name: displayName.trim(),
+          bio: bio.trim() || null,
+          instagram_handle: igHandle.trim().replace(/^@/, '') || null,
+          persona_tags: personaTags,
+          travel_styles: travelStyles,
+          languages,
+          visited_countries: visitedCountries,
+          photo_urls: finalUrls,
+        })
+        .eq('id', profile.id)
+        .select()
+        .single();
+
+      if (dbError) {
+        setError(dbError.message);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Haptic success feedback — no alert
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setProfile(data);
+      router.back();
+    } catch (err: any) {
+      setError(err?.message ?? "Couldn't save that. Try again?");
       setIsSubmitting(false);
-      return;
     }
-
-    setProfile(data);
-    router.back();
   };
 
   return (
@@ -130,6 +218,54 @@ export default function EditProfileScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* ── Photo Gallery Editor ── */}
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Photos</Text>
+          <Text style={styles.fieldHint}>Pick your best angles</Text>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.galleryRow}
+          >
+            {photos.map((photo, index) => (
+              <View key={`${photo.uri}-${index}`} style={styles.thumbContainer}>
+                <Image
+                  source={{ uri: photo.uri }}
+                  style={styles.thumb}
+                  contentFit="cover"
+                />
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  onPress={() => removePhoto(index)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <X size={12} color={Colors.white} strokeWidth={3} />
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            {photos.length < MAX_PHOTOS && (
+              <TouchableOpacity
+                style={styles.addPhotoBtn}
+                onPress={pickPhotos}
+                activeOpacity={0.7}
+              >
+                <Plus size={24} color={Colors.textTertiary} strokeWidth={2} />
+                <Text style={styles.addPhotoText}>Add</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+
+          {uploadingPhoto && (
+            <View style={styles.uploadingRow}>
+              <ActivityIndicator size="small" color={Colors.accent} />
+              <Text style={styles.uploadingText}>Compressing & uploading...</Text>
+            </View>
+          )}
+        </View>
+
         {/* ── Display Name ── */}
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Display Name</Text>
@@ -174,6 +310,27 @@ export default function EditProfileScreen() {
             autoCorrect={false}
             returnKeyType="done"
           />
+        </View>
+
+        {/* ── Persona Tags ── */}
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Persona</Text>
+          <Text style={styles.fieldHint}>What's your vibe?</Text>
+          <View style={styles.chipGrid}>
+            {PERSONA_TAGS.map(tag => {
+              const active = personaTags.includes(tag);
+              return (
+                <TouchableOpacity
+                  key={tag}
+                  style={[styles.personaChip, active && styles.personaChipActive]}
+                  onPress={() => setPersonaTags(pt => toggle(pt, tag))}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.personaChipText, active && styles.personaChipTextActive]}>{tag}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* ── Travel Style ── */}
@@ -249,6 +406,8 @@ export default function EditProfileScreen() {
 
 // ── Styles ─────────────────────────────────────────────────────────────────
 
+const THUMB_SIZE = 100;
+
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
@@ -312,6 +471,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 28,
     gap: 28,
+  },
+
+  // ── Photo Gallery ─────────────────────────────────────────────
+  galleryRow: {
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  thumbContainer: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: Radius.md,
+    overflow: 'visible',
+  },
+  thumb: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surface,
+  },
+  deleteBtn: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.card,
+  },
+  addPhotoBtn: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  addPhotoText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textTertiary,
+  },
+  uploadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  uploadingText: {
+    fontSize: 13,
+    color: Colors.textTertiary,
   },
 
   // ── Field wrapper ────────────────────────────────────────────
@@ -378,6 +594,29 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: Colors.white,
+  },
+
+  // ── Persona chips (outlined accent style) ───────────────────
+  personaChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  personaChipActive: {
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentMuted,
+  },
+  personaChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+  },
+  personaChipTextActive: {
+    color: Colors.accent,
+    fontWeight: '600',
   },
 
   // ── Country chips ────────────────────────────────────────────

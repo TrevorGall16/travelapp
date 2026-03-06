@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -183,16 +185,25 @@ export default function EventChatScreen() {
       // ── END MOCK MODE ──────────────────────────────────────────────────────
 
       try {
-        // 1. Fetch event metadata
+        // 1. Fetch event metadata (.maybeSingle avoids PGRST116 crash on missing rows)
         const { data: eventData, error: eventError } = await supabase
           .from('events')
           .select('title, participant_count, max_participants, status, host_id, meetup_point_label, location')
           .eq('id', eventId)
-          .single();
+          .maybeSingle();
 
-        if (eventError || !eventData) {
+        if (eventError) {
           console.error('[EventChat] DB ERROR:', eventError);
-          if (!cancelled) setConnectError(`DB Error: ${eventError?.message || 'No data returned'}`);
+          if (!cancelled) setConnectError(`DB Error: ${eventError.message}`);
+          return;
+        }
+
+        if (!eventData) {
+          console.warn('[EventChat] Event not found — deleted or expired. eventId:', eventId);
+          if (!cancelled) {
+            Alert.alert('Event Not Found', 'This event no longer exists.');
+            router.replace('/(tabs)/');
+          }
           return;
         }
 
@@ -217,12 +228,8 @@ export default function EventChatScreen() {
           }
         }
 
-        // 2. Stream user is connected centrally in _layout.tsx.
-        // Sync latest avatar/name so other users see current data.
-        await streamClient.partialUpdateUser({
-          id: user.id,
-          set: { name: profile.display_name, image: profile.avatar_url },
-        });
+        // 2. Stream user sync is handled reactively in _layout.tsx
+        //    (watches profile changes → partialUpdateUser).
 
         if (cancelled) return;
 
@@ -363,6 +370,7 @@ export default function EventChatScreen() {
   // atomically (with rollback). Client must NOT call channel.addMembers separately.
   const handleJoinEvent = useCallback(async () => {
     if (!user || !eventId) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsJoining(true);
     try {
       // Always fetch a live session token. Do NOT rely on supabase.functions.invoke
@@ -587,7 +595,10 @@ return (
         {/* ── Header ── */}
         <View style={styles.header}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.back();
+            }}
             style={styles.backButton}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
@@ -600,13 +611,21 @@ return (
 
           <View style={styles.headerRight}>
             <Pressable
-              onPress={() => setIsMembersModalVisible(true)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setIsMembersModalVisible(true);
+              }}
               hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
             >
-              <Text style={styles.participantBadge}>👥 {participantCount}</Text>
+              <Text style={styles.participantBadge}>
+                👥 {streamChannel ? Object.keys(streamChannel.state.members).length : participantCount}
+              </Text>
             </Pressable>
             <Pressable
-              onPress={() => setOptionsModalVisible(true)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setOptionsModalVisible(true);
+              }}
               disabled={isDeleting}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
@@ -618,7 +637,7 @@ return (
         {/* ── Banners (Expired / Meetup / Join) ── */}
         {eventStatus === 'expired' && (
           <View style={styles.expiredBanner}>
-            <Text style={styles.expiredText}>This event has ended — chat is read-only.</Text>
+            <Text style={styles.expiredText}>This one's over — chat is read-only.</Text>
           </View>
         )}
 
@@ -635,38 +654,49 @@ return (
                 <Text style={styles.joinButtonTextMuted}>Event Full</Text>
               </View>
             ) : (
-              <TouchableOpacity
-                style={[styles.joinButton, styles.joinButtonAccent, isJoining && styles.joinButtonLoading]}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.joinButton,
+                  styles.joinButtonAccent,
+                  isJoining && styles.joinButtonLoading,
+                  pressed && !isJoining && { opacity: 0.85 },
+                ]}
                 onPress={handleJoinEvent}
                 disabled={isJoining}
-                activeOpacity={0.8}
               >
                 {isJoining
                   ? <ActivityIndicator size="small" color={Colors.white} />
-                  : <Text style={styles.joinButtonText}>Join Meetup</Text>
+                  : <Text style={styles.joinButtonText}>Count me in.</Text>
                 }
-              </TouchableOpacity>
+              </Pressable>
             )}
           </View>
         )}
 
         {/* ── Stream Chat Container ── */}
-        {/* Stream's KeyboardCompatibleView (disableKeyboardCompatibleView={false})
-            is the single authority for keyboard avoidance. No competing KAV.
-            The root View's paddingBottom handles the home-indicator safe area;
-            iOS keyboard height already includes that inset, so KCV + paddingBottom
-            do NOT double-count — the padding is hidden under the keyboard when open. */}
-        <View style={{ flex: 1 }}>
+        {/* On iOS, Stream's KeyboardCompatibleView handles keyboard avoidance.
+            On Android, we wrap in KeyboardAvoidingView with behavior="padding"
+            because Stream's KCV is unreliable there. */}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? undefined : 'padding'}
+          keyboardVerticalOffset={Platform.OS === 'android' ? insets.top + 56 : 0}
+        >
           <Chat client={streamClient} style={STREAM_THEME}>
-            <Channel channel={streamChannel} disableKeyboardCompatibleView={false}>
+            <Channel
+              channel={streamChannel}
+              disableKeyboardCompatibleView={Platform.OS === 'android'}
+            >
               <MessageList noGroupByUser showUserAvatars />
 
               {(isParticipant || isHost) && (
-                <MessageInput />
+                <View style={{ paddingBottom: insets.bottom }}>
+                  <MessageInput />
+                </View>
               )}
             </Channel>
           </Chat>
-        </View>
+        </KeyboardAvoidingView>
 
         {/* ── Overlays & Modals ── */}
         {isDeleting && (

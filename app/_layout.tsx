@@ -154,6 +154,25 @@ if (session?.user) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Keep Stream user in sync when profile changes (e.g. Edit Profile) ───
+  useEffect(() => {
+    if (!profile || !streamClient.userID) return;
+    const current = streamClient.user;
+    if (
+      current?.name !== profile.display_name ||
+      current?.image !== profile.avatar_url
+    ) {
+      streamClient
+        .partialUpdateUser({
+          id: streamClient.userID,
+          set: { name: profile.display_name, image: profile.avatar_url },
+        })
+        .catch((err) =>
+          console.warn('[Stream] partialUpdateUser sync failed:', err),
+        );
+    }
+  }, [profile]);
+
   // ── Navigation guard ─────────────────────────────────────────────────────
   useEffect(() => {
     // isInitialized only becomes true AFTER the first onAuthStateChange fires

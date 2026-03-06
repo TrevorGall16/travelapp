@@ -22,7 +22,16 @@ If the app is already on your phone
 If you've already built the app and just need to start the Metro bundler so the code updates when you save, use this "Cache-Buster" version:
 
 PowerShell
+
+
+npx expo start
+
+
 npx expo start --dev-client -c
+
+npx expo run:android
+
+
 Pro-Tip for your notes:
 If the app opens but can't connect to your computer, remember the "Handshake" command to link the ports:
 

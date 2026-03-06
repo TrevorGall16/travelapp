@@ -1,10 +1,10 @@
-// styles/eventCardStyles.ts — Styles extracted from components/map/EventCard.tsx
+// styles/eventCardStyles.ts — Premium event card bottom sheet
 
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
+import { Colors, Radius, Shadows, Spacing } from '../constants/theme';
 
 // Generous height so the spring never shows the sheet background beneath it.
-// Exported because the component's animation logic references this value directly.
-export const SHEET_HEIGHT = 520;
+export const SHEET_HEIGHT = 540;
 
 export const styles = StyleSheet.create({
   // Backdrop
@@ -18,48 +18,46 @@ export const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#1E293B',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 36, // approx. safe-area bottom on most devices
-    minHeight: 200,
-    // Elevation so it sits above map markers on Android
-    elevation: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 32,
+    minHeight: 220,
+    borderTopWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.heavy,
   },
 
   // Drag handle
   handle: {
     alignSelf: 'center',
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#475569',
-    marginBottom: 16,
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.border,
+    marginBottom: Spacing.lg,
   },
 
   // Title
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 10,
+    gap: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   categoryEmoji: {
-    fontSize: 26,
-    marginTop: 1,
+    fontSize: 28,
+    marginTop: 2,
   },
   title: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#F8FAFC',
-    lineHeight: 26,
+    color: Colors.textPrimary,
+    lineHeight: 28,
+    letterSpacing: -0.3,
   },
 
   // Meta row (countdown + tags)
@@ -67,8 +65,8 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 16,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
   },
   countdownDot: {
     width: 8,
@@ -81,146 +79,165 @@ export const styles = StyleSheet.create({
   },
   separator: {
     fontSize: 13,
-    color: '#475569',
+    color: Colors.border,
   },
   discoveryLabel: {
     fontSize: 13,
-    color: '#64748B',
+    color: Colors.textTertiary,
+    fontWeight: '500',
   },
   verifiedOnlyChip: {
     fontSize: 12,
-    color: '#60A5FA',
+    color: Colors.accentLight,
     fontWeight: '600',
+    backgroundColor: Colors.accentMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+    overflow: 'hidden',
   },
 
-  // Host
+  // Host — premium card-in-card
   hostRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 14,
+    gap: Spacing.md,
+    backgroundColor: Colors.background,
+    borderRadius: Radius.md,
+    padding: 14,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   hostRowSkeleton: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: '#0F172A',
-    marginBottom: 14,
+    height: 60,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.background,
+    marginBottom: Spacing.md,
   },
   hostAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#334155',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.border,
   },
   avatarFallback: {
-    backgroundColor: '#475569',
+    backgroundColor: Colors.surfaceElevated,
   },
   hostTextBlock: {
     flex: 1,
+    gap: 1,
   },
   hostedByLabel: {
     fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
+    color: Colors.textTertiary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   hostName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
+    letterSpacing: -0.1,
   },
   verifiedBadge: {
-    backgroundColor: '#1D3461',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    backgroundColor: Colors.accentMuted,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: Colors.accentGlow,
   },
   verifiedBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#60A5FA',
+    color: Colors.accentLight,
   },
 
   // Participants
   participantSection: {
-    gap: 8,
-    marginBottom: 14,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   participantCountText: {
-    fontSize: 13,
-    color: '#94A3B8',
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontWeight: '500',
   },
   participantCountBold: {
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
   },
   avatarScroll: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
     alignItems: 'center',
+    paddingVertical: 2,
   },
   participantAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#334155',
-    borderWidth: 1.5,
-    borderColor: '#1E293B',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.border,
+    borderWidth: 2,
+    borderColor: Colors.surface,
   },
   overflowBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#334155',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceElevated,
+    borderWidth: 2,
+    borderColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
   overflowText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: Colors.textSecondary,
   },
 
-  // Meetup point
+  // Meetup point — premium nested card
   meetupRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#0F172A',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 18,
+    gap: Spacing.md,
+    backgroundColor: Colors.background,
+    borderRadius: Radius.md,
+    padding: 14,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  meetupPin: { fontSize: 16 },
+  meetupPin: { fontSize: 18 },
   meetupLabel: {
     fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
+    color: Colors.textTertiary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   meetupValue: {
-    fontSize: 13,
-    color: '#94A3B8',
+    fontSize: 14,
+    color: Colors.textSecondary,
     fontStyle: 'italic',
-    marginTop: 1,
+    marginTop: 2,
   },
 
-  // CTA button
+  // CTA button — premium with accent glow
   joinBtn: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 14,
-    paddingVertical: 15,
+    backgroundColor: Colors.accent,
+    borderRadius: Radius.md,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    ...Shadows.accentGlow,
   },
   joinBtnPressed: {
-    opacity: 0.85,
+    opacity: 0.88,
+    transform: [{ scale: 0.985 }],
   },
   joinBtnLoading: {
     opacity: 0.7,
@@ -228,7 +245,7 @@ export const styles = StyleSheet.create({
   joinBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.white,
     letterSpacing: 0.3,
   },
 });

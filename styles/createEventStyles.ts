@@ -1,78 +1,77 @@
-// styles/createEventStyles.ts — Styles extracted from app/event/create.tsx
+// styles/createEventStyles.ts — Premium event creation form styles
 
 import { Platform, StyleSheet } from 'react-native';
-
-export const ELECTRIC_BLUE = '#3B82F6';
+import { Colors, Radius, Shadows, Spacing } from '../constants/theme';
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: Colors.background,
   },
   flex: {
     flex: 1,
   },
 
-  // Header — paddingTop is applied inline via useSafeAreaInsets
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 16,
-    paddingHorizontal: 24,
+    paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.xxl,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: Colors.border,
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
+    letterSpacing: -0.2,
   },
-  // top is applied inline
   closeBtn: {
     position: 'absolute',
-    right: 20,
-    padding: 4,
+    right: Spacing.xl,
+    padding: Spacing.xs,
   },
 
   // Scroll content
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingHorizontal: Spacing.xxl,
+    paddingTop: Spacing.xxl,
     paddingBottom: 48,
-    gap: 24,
+    gap: Spacing.xxl,
   },
 
   // Field group
   fieldGroup: {
-    gap: 8,
+    gap: Spacing.sm,
   },
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   labelOptional: {
     fontWeight: '400',
     textTransform: 'none',
-    color: '#475569',
+    color: Colors.textTertiary,
   },
 
   // Inputs
   input: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
   },
   inputError: {
-    borderColor: '#EF4444',
+    borderColor: Colors.error,
   },
   textArea: {
     minHeight: 88,
@@ -85,78 +84,80 @@ export const styles = StyleSheet.create({
   },
   charCount: {
     fontSize: 12,
-    color: '#475569',
+    color: Colors.textTertiary,
   },
   charCountRight: {
     textAlign: 'right',
   },
   errorText: {
     fontSize: 13,
-    color: '#EF4444',
+    color: Colors.error,
+    fontWeight: '500',
   },
 
-  // Category chips — 3 per row
+  // Category chips
   chipGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: Spacing.sm + 2,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#1E293B',
-    borderRadius: 10,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: Spacing.sm + 2,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
     minWidth: '30%',
   },
   chipSelected: {
-    backgroundColor: '#1D3E6E',
-    borderColor: ELECTRIC_BLUE,
+    backgroundColor: Colors.accentGlow,
+    borderColor: Colors.accent,
   },
   chipEmoji: {
     fontSize: 18,
   },
   chipLabel: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: Colors.textSecondary,
     fontWeight: '500',
   },
   chipLabelSelected: {
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
+    fontWeight: '600',
   },
 
   // Location picker
   locationHint: {
     fontSize: 13,
-    color: '#64748B',
+    color: Colors.textTertiary,
     marginTop: -2,
   },
   mapPickerContainer: {
-    borderRadius: 12,
+    borderRadius: Radius.md,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
   },
   mapPicker: {
     height: 250,
   },
   mapPlaceholder: {
     height: 120,
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: Spacing.xl,
   },
   mapPlaceholderText: {
     fontSize: 14,
-    color: '#475569',
+    color: Colors.textTertiary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -165,13 +166,13 @@ export const styles = StyleSheet.create({
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#334155',
-    gap: 10,
+    borderColor: Colors.border,
+    gap: Spacing.sm + 2,
   },
   dateRowIcon: {
     fontSize: 18,
@@ -179,23 +180,24 @@ export const styles = StyleSheet.create({
   dateRowText: {
     flex: 1,
     fontSize: 16,
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
     fontWeight: '500',
   },
   dateRowChevron: {
     fontSize: 22,
-    color: '#475569',
+    color: Colors.textTertiary,
     lineHeight: 24,
   },
   datePickerDoneBtn: {
-    backgroundColor: ELECTRIC_BLUE,
-    borderRadius: 10,
-    paddingVertical: 10,
+    backgroundColor: Colors.accent,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.sm + 2,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: Spacing.xs,
+    ...Shadows.accentGlow,
   },
   datePickerDoneBtnText: {
-    color: '#FFFFFF',
+    color: Colors.white,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -204,13 +206,13 @@ export const styles = StyleSheet.create({
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.lg,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#334155',
-    gap: 12,
+    borderColor: Colors.border,
+    gap: Spacing.md,
   },
   toggleRowDisabled: {
     opacity: 0.5,
@@ -222,37 +224,36 @@ export const styles = StyleSheet.create({
   toggleTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
   },
   toggleSubtitle: {
     fontSize: 13,
-    color: '#64748B',
+    color: Colors.textTertiary,
     lineHeight: 18,
   },
 
-  // Publish button
+  // Publish button — premium CTA
   publishBtn: {
-    backgroundColor: ELECTRIC_BLUE,
-    borderRadius: 14,
+    backgroundColor: Colors.accent,
+    borderRadius: Radius.lg,
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: ELECTRIC_BLUE,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    marginTop: Spacing.sm,
+    ...Shadows.accentGlow,
   },
   btnDisabled: {
     opacity: 0.45,
-    shadowOpacity: 0,
-    elevation: 0,
+    ...Platform.select({
+      ios: { shadowOpacity: 0 },
+      android: { elevation: 0 },
+    }),
   },
   publishBtnText: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.white,
+    letterSpacing: 0.3,
   },
 
   // Toast
@@ -260,22 +261,18 @@ export const styles = StyleSheet.create({
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 48 : 32,
     alignSelf: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
     borderWidth: 1,
-    borderColor: '#334155',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    borderColor: Colors.border,
+    ...Shadows.medium,
   },
   toastText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
     textAlign: 'center',
   },
 });

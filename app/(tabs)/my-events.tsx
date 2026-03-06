@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   SectionList,
@@ -17,10 +18,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import type { EventCategory } from '../../types';
 import { CATEGORY_EMOJI } from '../../constants/categories';
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const ELECTRIC_BLUE = '#3B82F6';
+import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,12 +38,12 @@ interface EventRow {
 
 function countdownInfo(expiresAt: string): { label: string; color: string } {
   const mins = differenceInMinutes(new Date(expiresAt), new Date());
-  if (mins <= 0) return { label: 'Ended', color: '#475569' };
-  if (mins < 60) return { label: `${mins}m left`, color: '#EF4444' };
+  if (mins <= 0) return { label: 'Ended', color: Colors.textTertiary };
+  if (mins < 60) return { label: `${mins}m left`, color: Colors.error };
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  if (h < 3) return { label: m ? `${h}h ${m}m left` : `${h}h left`, color: '#F59E0B' };
-  return { label: `${h}h left`, color: '#22C55E' };
+  if (h < 3) return { label: m ? `${h}h ${m}m left` : `${h}h left`, color: Colors.warning };
+  return { label: `${h}h left`, color: Colors.success };
 }
 
 // ─── Event Row ────────────────────────────────────────────────────────────────
@@ -115,7 +113,7 @@ function EventRowItem({
   );
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function MyEventsScreen() {
   const { user } = useAuthStore();
@@ -131,13 +129,12 @@ export default function MyEventsScreen() {
     return () => { isMountedRef.current = false; };
   }, []);
 
-  // ── Data fetch ───────────────────────────────────────────────────────────
+  // ── Data fetch ─────────────────────────────────────────────────────────
 
   const fetchMyEvents = useCallback(async () => {
     if (!user) return;
 
     try {
-      // Step 1: get all event IDs the current user is a participant of
       const { data: participantRows, error: partError } = await supabase
         .from('event_participants')
         .select('event_id')
@@ -156,7 +153,6 @@ export default function MyEventsScreen() {
         (r: { event_id: string }) => r.event_id,
       );
 
-      // Step 2: fetch the event rows (active first by ascending expiry)
       const { data: eventRows, error: eventError } = await supabase
         .from('events')
         .select('id, title, category, status, expires_at, host_id, participant_count')
@@ -172,7 +168,6 @@ export default function MyEventsScreen() {
         return;
       }
 
-      // Step 3: fetch host profile snippets for display
       const hostIds = [
         ...new Set(eventRows.map((e: { host_id: string }) => e.host_id)),
       ];
@@ -188,7 +183,6 @@ export default function MyEventsScreen() {
         ),
       );
 
-      // Merge host data onto each event row
       const combined: EventRow[] = (
         eventRows as Array<{
           id: string;
@@ -205,8 +199,6 @@ export default function MyEventsScreen() {
         host_avatar_url: profileMap.get(e.host_id)?.avatar_url ?? null,
       }));
 
-      // Active: soonest expiry first (already ordered by DB query).
-      // Past: flip to most-recently-ended first.
       if (!isMountedRef.current) return;
       setActiveEvents(combined.filter((e) => e.status === 'active'));
       setPastEvents(combined.filter((e) => e.status === 'expired').reverse());
@@ -220,7 +212,6 @@ export default function MyEventsScreen() {
     }
   }, [user]);
 
-  // Re-fetch on mount AND every time this tab gains focus (back from chat, etc.)
   useFocusEffect(
     useCallback(() => {
       fetchMyEvents();
@@ -232,7 +223,7 @@ export default function MyEventsScreen() {
     fetchMyEvents();
   }, [fetchMyEvents]);
 
-  // ── Section data ─────────────────────────────────────────────────────────
+  // ── Section data ───────────────────────────────────────────────────────
 
   const sections = useMemo(() => {
     const result: Array<{ title: string; data: EventRow[] }> = [];
@@ -244,7 +235,7 @@ export default function MyEventsScreen() {
   const isEmpty =
     !isLoading && activeEvents.length === 0 && pastEvents.length === 0;
 
-  // ── Loading ───────────────────────────────────────────────────────────────
+  // ── Loading ─────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -253,13 +244,13 @@ export default function MyEventsScreen() {
           <Text style={styles.screenTitle}>My Events</Text>
         </View>
         <View style={styles.centeredFill}>
-          <ActivityIndicator size="large" color={ELECTRIC_BLUE} />
+          <ActivityIndicator size="large" color={Colors.accent} />
         </View>
       </SafeAreaView>
     );
   }
 
-  // ── Empty state ───────────────────────────────────────────────────────────
+  // ── Empty state ─────────────────────────────────────────────────────────
 
   if (isEmpty) {
     return (
@@ -279,7 +270,7 @@ export default function MyEventsScreen() {
     );
   }
 
-  // ── List ──────────────────────────────────────────────────────────────────
+  // ── List ────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -304,8 +295,8 @@ export default function MyEventsScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor={ELECTRIC_BLUE}
-            colors={[ELECTRIC_BLUE]}
+            tintColor={Colors.accent}
+            colors={[Colors.accent]}
           />
         }
         contentContainerStyle={styles.listContent}
@@ -314,27 +305,27 @@ export default function MyEventsScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: Colors.background,
   },
 
   // Header
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#1E293B',
+    borderBottomColor: Colors.border,
   },
   screenTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    letterSpacing: -0.3,
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    letterSpacing: -0.5,
   },
 
   // Utility
@@ -342,52 +333,54 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
-    gap: 12,
+    padding: Spacing.xxxl,
+    gap: Spacing.md,
   },
 
   // Section header
   sectionHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 8,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.sm,
   },
   sectionHeaderText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#475569',
+    color: Colors.textTertiary,
     letterSpacing: 1.2,
   },
 
   // List
   listContent: {
-    paddingBottom: 32,
+    paddingBottom: Spacing.xxxl,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#1E293B',
-    marginLeft: 80, // aligns under the title, skips the emoji circle + gap
+    backgroundColor: Colors.borderSubtle,
+    marginLeft: 80,
   },
 
   // Row
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: Spacing.xl,
     paddingVertical: 14,
     gap: 14,
   },
   rowPressed: {
-    backgroundColor: '#1E293B',
+    backgroundColor: Colors.surface,
   },
   emojiCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#1E293B',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   emojiCircleDim: {
     opacity: 0.4,
@@ -397,7 +390,7 @@ const styles = StyleSheet.create({
   },
   rowBody: {
     flex: 1,
-    gap: 5,
+    gap: 6,
   },
   rowTop: {
     flexDirection: 'row',
@@ -407,16 +400,17 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
+    letterSpacing: -0.2,
   },
   titleDim: {
-    color: '#64748B',
+    color: Colors.textTertiary,
   },
   countdownLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     flexShrink: 0,
   },
   rowMeta: {
@@ -425,41 +419,43 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   hostAvatar: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#334155',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.border,
   },
   hostAvatarFallback: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#334155',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.border,
   },
   hostName: {
-    fontSize: 12,
-    color: '#64748B',
+    fontSize: 13,
+    color: Colors.textTertiary,
     flexShrink: 1,
+    fontWeight: '500',
   },
   hostBadge: {
-    backgroundColor: '#172554',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
+    backgroundColor: Colors.accentMuted,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   hostBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: ELECTRIC_BLUE,
+    color: Colors.accent,
     letterSpacing: 0.3,
   },
   participantCount: {
     fontSize: 12,
-    color: '#475569',
+    color: Colors.textTertiary,
+    fontWeight: '500',
   },
   chevron: {
     fontSize: 22,
-    color: '#334155',
+    color: Colors.border,
     lineHeight: 26,
   },
   chevronDim: {
@@ -471,15 +467,15 @@ const styles = StyleSheet.create({
     fontSize: 52,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: Colors.textPrimary,
     marginTop: 4,
   },
   emptyBody: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: 15,
+    color: Colors.textTertiary,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
   },
 });

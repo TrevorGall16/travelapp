@@ -7,9 +7,10 @@
 ---
 
 ## 1. THE AUTONOMY OVERRIDE (FLEXIBILITY RULE)
-These guidelines are meant to ensure a secure, maintainable app. However, **compilation and functionality take priority**. 
-* If a strict stylistic rule or architectural boundary causes a persistent build failure or dependency clash, you are authorized to adapt and use standard React Native best practices to fix the bug.
-* Do not get stuck in a loop trying to enforce a rigid pattern if it breaks the app. Fix the error, leave a comment explaining the deviation, and move on.
+* **Priority:** Functionality and compilation > strict adherence.
+* **Rule:** If a guideline blocks a fix for a native dependency clash or a complex mobile error (e.g., Map clustering or Stream.io sync), you MUST bypass the rule to achieve a working build.
+* **Adaptive Thinking:** For complex debugging in PostGIS or Edge Functions, you are REQUIRED to use **High Effort ("ultrathink")** logic.
+* **Direct Feedback:** If you are stuck in a loop, state: "The current guidelines are preventing a fix because [Reason]. I am now proceeding with a standard React Native alternative."
 
 ---
 
@@ -55,6 +56,11 @@ The Builder AI must assume the internet is unreliable, APIs will return empty or
 * **Versioning as a Pre-Commit Requirement:** You must increment the `version` (e.g., "1.0.1") and `ios.buildNumber` / `android.versionCode` integers in `app.json` before triggering any EAS build. Apple and Google will instantly reject duplicate version strings.
 * **No Hardcoded System Styling:** Do not hardcode specific font families (like 'Courier' or 'Roboto') that override native UI expectations. Let React Native default to the system fonts (San Francisco on iOS, Roboto on Android) for a premium, native feel. 
 * **Boilerplate Cleanup:** Before the first production build, you must locate and delete all default Expo/React Native placeholder tests (e.g., default `<Text>Open up App.js to start working on your app!</Text>` components or placeholder `App.test.tsx` files). Stale tests will crash the automated CI/CD pipeline.
+
+## 8. VERIFICATION PROTOCOL (NEW)
+* **Success Criteria:** Before editing any core mobile screen (e.g., `index.tsx`), you must state exactly what "fixed" looks like (e.g., "The pin should cluster and show the correct emoji").
+* **Self-Critique:** After every fix, perform a "Step-Back" review: "Did this fix introduce a side effect in the Zustand store?"
+* **Log Check:** Demand logs or screenshots from the user. Do not guess the cause of a mobile crash; use the `code_execution` tool to verify logic paths if the environment allows.
 
 ### Safe Area & Screen Edges
 - **The Bottom Bar Rule:** ALL scrollable screens and absolute bottom elements MUST use `useSafeAreaInsets` from `react-native-safe-area-context`.

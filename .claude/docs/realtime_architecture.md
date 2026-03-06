@@ -4,7 +4,9 @@
 **For:** Builder AI  
 **Project:** Solo Travel Social App (NomadMeet - Working Title) 
 **Purpose:** Define every real-time infrastructure decision so the Builder AI never invents its own approach. This document governs all live data — map updates, chat, polls, presence, notifications, and the Model B expiry cascade.
-
+> **Builder Instruction:** This is a high-complexity architecture. 
+> 1. Use **High Effort (ultrathink)** for any changes to the `pg_cron` expiry cascade or PostGIS RPC functions.
+> 2. Delegate deep research into `supercluster` or Stream.io documentation to a **Subagent (Explore type)** to keep the implementation context clean.
 ---
 
 ## CORE PRINCIPLE

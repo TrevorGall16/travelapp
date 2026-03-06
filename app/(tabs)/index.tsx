@@ -7,24 +7,24 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Modal,
   Platform,
   Pressable,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, {
   Marker,
   type Region,
   PROVIDER_GOOGLE,
-  PROVIDER_DEFAULT,
 } from 'react-native-maps';
 import * as Location from 'expo-location';
 import Supercluster from 'supercluster';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Bell, Check, LocateFixed, Plus, SlidersHorizontal } from 'lucide-react-native';
+import { Bell, Check, LocateFixed, MapPin, Plus, SlidersHorizontal } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
@@ -78,6 +78,8 @@ export default function MapScreen() {
   const [activeFilter, setActiveFilter] = useState('all');
   // Stacked-pins modal: shown when a cluster's leaves all share the same coordinate
   const [stackedEventIds, setStackedEventIds] = useState<string[]>([]);
+  // Flips true after onMapReady + requestAnimationFrame, proving tiles can render.
+  const [tilesLoaded, setTilesLoaded] = useState(false);
 
   const mapRef = useRef<MapView>(null);
   const lastFetchRef = useRef<{ latitude: number; longitude: number } | null>(
@@ -265,10 +267,19 @@ export default function MapScreen() {
         return;
       }
 
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      // ── Request location permission ────────────────────────────────────────
+      let status: Location.PermissionStatus;
+      try {
+        const res = await Location.requestForegroundPermissionsAsync();
+        status = res.status;
+      } catch (err) {
+        console.warn('[Map] Permission request threw:', err);
+        status = Location.PermissionStatus.DENIED;
+      }
+
       if (isMounted) setPermissionStatus(status);
 
-      if (status !== 'granted') {
+      if (status !== Location.PermissionStatus.GRANTED) {
         if (isMounted) {
           setPermissionDenied(true);
           setIsLoading(false);
@@ -276,27 +287,36 @@ export default function MapScreen() {
         return;
       }
 
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      if (!isMounted) return;
-
-      const { latitude, longitude } = pos.coords;
+      // ── Get current position ────────────────────────────────────────────────
+      let latitude: number;
+      let longitude: number;
+      try {
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        latitude = pos.coords.latitude;
+        longitude = pos.coords.longitude;
+      } catch (err) {
+        console.warn('[Map] getCurrentPositionAsync failed, falling back to last known:', err);
+        const last = await Location.getLastKnownPositionAsync();
+        if (last) {
+          latitude = last.coords.latitude;
+          longitude = last.coords.longitude;
+        } else {
+          // Hard fallback — central Paris
+          latitude = 48.8566;
+          longitude = 2.3522;
+        }
+      }
       setCoordinates({ latitude, longitude });
 
-      // Reverse-geocode to extract city name for Realtime scoping
+      // ── Reverse-geocode for city ────────────────────────────────────────────
       let detectedCity: string | null = null;
       try {
-        const [place] = await Location.reverseGeocodeAsync({
-          latitude,
-          longitude,
-        });
-        detectedCity =
-          place?.city ?? place?.district ?? place?.subregion ?? null;
-        if (isMounted) setCity(detectedCity);
-      } catch (err) {
-        console.warn('[Map] Reverse geocode failed:', err);
-      }
+        const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+        detectedCity = place?.city ?? place?.district ?? place?.subregion ?? null;
+      } catch { /* keep null */ }
+      if (isMounted) setCity(detectedCity);
 
       await fetchEvents(latitude, longitude);
       if (!isMounted) return;
@@ -306,8 +326,8 @@ export default function MapScreen() {
       const initialRegion: Region = {
         latitude,
         longitude,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
+        latitudeDelta: 0.09,
+        longitudeDelta: 0.09,
       };
       setRegion(initialRegion);
       setIsLoading(false);
@@ -438,12 +458,16 @@ export default function MapScreen() {
       {
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
+        latitudeDelta: 0.09,
+        longitudeDelta: 0.09,
       },
       500,
     );
   }, [coordinates]);
+
+  const handleMapReady = useCallback(() => {
+    requestAnimationFrame(() => setTilesLoaded(true));
+  }, []);
 
   // ── Marker rendering ──────────────────────────────────────────────────────
 
@@ -474,14 +498,17 @@ export default function MapScreen() {
           );
         }
 
-        // Individual event pin
+        // Individual event pin — avatar-circle style
         const { eventId, category, hostVerified } =
           feature.properties as PinProperties;
         return (
           <Marker
             key={`event-${eventId}`}
             coordinate={coordinate}
-            onPress={() => handlePinPress(eventId)}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              handlePinPress(eventId);
+            }}
             tracksViewChanges={false}
           >
             <View
@@ -495,7 +522,6 @@ export default function MapScreen() {
                   {CATEGORY_EMOJI[category] ?? '📍'}
                 </Text>
               </View>
-              <View style={styles.pinTail} />
             </View>
           </Marker>
         );
@@ -513,27 +539,40 @@ export default function MapScreen() {
     );
   }
 
-  // ── Permission denied ─────────────────────────────────────────────────────
+  // ── Permission denied — slick overlay ─────────────────────────────────────
 
   if (permissionDenied) {
     return (
       <View style={[styles.fill, styles.centeredFill]}>
+        <View style={styles.permissionIconWrap}>
+          <MapPin size={36} color={Colors.accent} strokeWidth={2} />
+        </View>
+        <Text style={styles.permissionTitle}>Spot on the map</Text>
         <Text style={styles.permissionText}>
-          NomadMeet needs your location to show events near you and let others
-          find your events.
+          We need your location to show who's nearby.
         </Text>
         <Pressable
           style={styles.permissionBtn}
           onPress={async () => {
-            const { status } =
-              await Location.requestForegroundPermissionsAsync();
-            if (status === 'granted') {
-              setPermissionDenied(false);
-              setIsLoading(true);
+            try {
+              const { status } =
+                await Location.requestForegroundPermissionsAsync();
+              if (status === Location.PermissionStatus.GRANTED) {
+                setPermissionDenied(false);
+                setIsLoading(true);
+              } else {
+                // OS won't re-prompt — send user to Settings
+                Linking.openSettings();
+              }
+            } catch {
+              Linking.openSettings();
             }
           }}
         >
           <Text style={styles.permissionBtnText}>Allow Location</Text>
+        </Pressable>
+        <Pressable onPress={() => Linking.openSettings()}>
+          <Text style={styles.permissionSettingsLink}>Open Settings</Text>
         </Pressable>
       </View>
     );
@@ -548,65 +587,74 @@ export default function MapScreen() {
         <View style={styles.mapHeaderSpacer} />
         <Text style={styles.appName}>Globe</Text>
         <View style={styles.mapHeaderActions}>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => router.push('/notifications')}
-            activeOpacity={0.7}
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/notifications');
+            }}
           >
             <Bell size={22} color={Colors.textPrimary} strokeWidth={2} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => setIsFilterModalVisible(true)}
-            activeOpacity={0.7}
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIsFilterModalVisible(true);
+            }}
           >
             <SlidersHorizontal
               size={22}
               color={activeFilter !== 'all' ? Colors.accent : Colors.textPrimary}
               strokeWidth={2}
             />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
 
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT}
-        showsUserLocation={false}
-        initialRegion={
-          region ?? {
-            latitude: coordinates?.latitude ?? 0,
-            longitude: coordinates?.longitude ?? 0,
-            latitudeDelta: 0.04,
-            longitudeDelta: 0.04,
+      {/* Map container — transparent bg so nothing paints over tiles */}
+      <View style={styles.mapContainer}>
+        <MapView
+          key={mapKey}
+          ref={mapRef}
+          style={styles.map}
+          provider={PROVIDER_GOOGLE}
+          mapType="standard"
+          showsUserLocation={false}
+          initialRegion={
+            region ?? {
+              latitude: coordinates?.latitude ?? 48.8566,
+              longitude: coordinates?.longitude ?? 2.3522,
+              latitudeDelta: 0.09,
+              longitudeDelta: 0.09,
+            }
           }
-        }
-        onRegionChangeComplete={handleRegionChangeComplete}
-        showsMapToolbar={false}
-      >
-        {renderedMarkers}
+          onMapReady={handleMapReady}
+          onRegionChangeComplete={handleRegionChangeComplete}
+          showsMapToolbar={false}
+        >
+          {tilesLoaded && renderedMarkers}
 
-        {/* Custom user location dot — replaces showsUserLocation which crashes
-            on RN 0.76 Fabric with "topUserLocationChange" event errors. */}
-        {coordinates && (
-          <Marker
-            coordinate={coordinates}
-            anchor={{ x: 0.5, y: 0.5 }}
-            tracksViewChanges={false}
-          >
-            <View style={styles.userDotOuter}>
-              <View style={styles.userDotInner} />
-            </View>
-          </Marker>
-        )}
-      </MapView>
+          {/* Custom user location dot */}
+          {tilesLoaded && coordinates && (
+            <Marker
+              coordinate={coordinates}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+            >
+              <View style={styles.userDotOuter}>
+                <View style={styles.userDotInner} />
+              </View>
+            </Marker>
+          )}
+        </MapView>
+      </View>
 
       {/* Empty state */}
       {events.length === 0 && (
         <View style={styles.emptyBanner} pointerEvents="none">
           <Text style={styles.emptyText}>
-            No events nearby. Drop a pin to start one!
+            Nothing nearby yet. Drop the first pin.
           </Text>
         </View>
       )}
@@ -628,7 +676,10 @@ export default function MapScreen() {
           {/* Recenter FAB — snaps map back to current GPS position */}
           <Pressable
             style={styles.recenterFab}
-            onPress={handleRecenter}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              handleRecenter();
+            }}
             accessibilityLabel="Recenter map"
             accessibilityRole="button"
           >
@@ -638,7 +689,10 @@ export default function MapScreen() {
           {/* Create event FAB */}
           <Pressable
             style={styles.fab}
-            onPress={() => router.push('/event/create')}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/event/create');
+            }}
             accessibilityLabel="Create event"
             accessibilityRole="button"
           >
@@ -663,25 +717,25 @@ export default function MapScreen() {
         <View style={[styles.filterSheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.filterHandle} />
           <Text style={styles.filterTitle}>
-            {stackedEventIds.length} Events Here
+            {stackedEventIds.length} events here
           </Text>
           {stackedEventIds.map((id) => {
             const ev = events.find((e) => e.id === id);
             if (!ev) return null;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={id}
-                style={styles.filterRow}
+                style={({ pressed }) => [styles.filterRow, pressed && { opacity: 0.7 }]}
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setStackedEventIds([]);
                   setSelectedEvent(ev);
                 }}
-                activeOpacity={0.7}
               >
                 <Text style={styles.filterRowLabel}>
                   {CATEGORY_EMOJI[ev.category] ?? '📍'} {ev.title}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </View>
@@ -703,20 +757,23 @@ export default function MapScreen() {
         {/* Bottom sheet */}
         <View style={[styles.filterSheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.filterHandle} />
-          <Text style={styles.filterTitle}>Filter Events</Text>
+          <Text style={styles.filterTitle}>Filter</Text>
 
           {FILTER_OPTIONS.map(option => {
             const isActive = activeFilter === option.value;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={option.value}
-                style={[styles.filterRow, isActive && styles.filterRowActive]}
+                style={({ pressed }) => [
+                  styles.filterRow,
+                  isActive && styles.filterRowActive,
+                  pressed && { opacity: 0.7 },
+                ]}
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setActiveFilter(option.value);
                   setIsFilterModalVisible(false);
-                  console.log('Filter changed:', option.value);
                 }}
-                activeOpacity={0.7}
               >
                 <Text style={[styles.filterRowLabel, isActive && styles.filterRowLabelActive]}>
                   {option.label}
@@ -724,7 +781,7 @@ export default function MapScreen() {
                 {isActive && (
                   <Check size={18} color={Colors.accent} strokeWidth={2.5} />
                 )}
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </View>

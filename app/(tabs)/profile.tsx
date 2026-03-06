@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MapPin, Compass, Users } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
-import { Colors } from '../../constants/theme';
+import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { forceGlobalSignOut } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { useFocusEffect } from 'expo-router';
 
-const AVATAR_SIZE = 120;
-const AVATAR_RING = 3;
+const AVATAR_SIZE = 110;
 
 export default function ProfileScreen() {
   const { profile, user } = useAuthStore();
@@ -19,16 +20,23 @@ export default function ProfileScreen() {
 
   const country = COUNTRIES.find(c => c.code === profile?.country_code);
 
-  // Real stats — fetched from DB on focus
   const [connections, setConnections] = useState(0);
+
+  // ── Fade-in entrance animation ──────────────────────────────────────────
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
 
   useFocusEffect(
     useCallback(() => {
       if (!user) return;
-      // "Connections" = distinct users who shared an event with this user
       (async () => {
         try {
-          // 1. Get all event IDs the user participated in
           const { data: myEvents } = await supabase
             .from('event_participants')
             .select('event_id')
@@ -37,7 +45,6 @@ export default function ProfileScreen() {
 
           const eventIds = myEvents.map(r => r.event_id);
 
-          // 2. Count distinct other users across those events
           const { data: others } = await supabase
             .from('event_participants')
             .select('user_id')
@@ -55,64 +62,69 @@ export default function ProfileScreen() {
   const countriesCount = profile?.visited_countries?.length || 1;
 
   const STATS = [
-    { value: String(activitiesCount), label: 'Activities' },
-    { value: String(connections), label: 'Connections' },
-    { value: String(countriesCount), label: 'Countries' },
+    { value: String(activitiesCount), label: 'Activities', icon: Compass, color: Colors.accent },
+    { value: String(connections), label: 'Connections', icon: Users, color: Colors.success },
+    { value: String(countriesCount), label: 'Countries', icon: MapPin, color: Colors.warning },
   ];
 
-  // forceGlobalSignOut: disconnects Stream → signs out Supabase → clears AsyncStorage.
-  // Prevents state (tokens, cached profile) leaking to the next user on the same device.
   const handleLogout = forceGlobalSignOut;
 
   return (
+    <Animated.View style={[styles.scroll, { opacity: fadeAnim }]}>
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 48 },
+        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 48 },
       ]}
       showsVerticalScrollIndicator={false}
     >
       {/* ── Hero ── */}
       <View style={styles.hero}>
         <TouchableOpacity onPress={() => router.push('/profile/preview')} activeOpacity={0.85}>
-          <View style={styles.avatarRing}>
-            {profile?.avatar_url ? (
-              <Image
-                source={{ uri: profile.avatar_url }}
-                style={styles.avatar}
-                contentFit="cover"
-              />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarInitial}>
-                  {profile?.display_name?.[0]?.toUpperCase() ?? '?'}
-                </Text>
-              </View>
-            )}
+          <View style={styles.avatarOuter}>
+            <View style={styles.avatarRing}>
+              {profile?.avatar_url ? (
+                <Image
+                  source={{ uri: profile.avatar_url }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarInitial}>
+                    {profile?.display_name?.[0]?.toUpperCase() ?? '?'}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </TouchableOpacity>
 
         <Text style={styles.displayName}>{profile?.display_name ?? 'Traveler'}</Text>
 
         {country ? (
-          <Text style={styles.countryLine}>
-            {country.flag}{'  '}{country.name}
-          </Text>
+          <View style={styles.countryPill}>
+            <Text style={styles.countryFlag}>{country.flag}</Text>
+            <Text style={styles.countryName}>{country.name}</Text>
+          </View>
         ) : null}
       </View>
 
-      {/* ── Stats Row ── */}
-      <View style={styles.statsCard}>
-        {STATS.map((stat, i) => (
-          <View
-            key={stat.label}
-            style={[styles.statItem, i < STATS.length - 1 && styles.statBorder]}
-          >
-            <Text style={styles.statValue}>{stat.value}</Text>
-            <Text style={styles.statLabel}>{stat.label}</Text>
-          </View>
-        ))}
+      {/* ── Stats Row — Premium ── */}
+      <View style={styles.statsRow}>
+        {STATS.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <View key={stat.label} style={styles.statCard}>
+              <View style={[styles.statIconCircle, { backgroundColor: stat.color + '18' }]}>
+                <Icon size={18} color={stat.color} strokeWidth={2.5} />
+              </View>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          );
+        })}
       </View>
 
       {/* ── About ── */}
@@ -123,7 +135,7 @@ export default function ProfileScreen() {
           <Text style={styles.bioText}>{profile.bio}</Text>
         ) : (
           <Text style={styles.bioPlaceholder}>
-            Add a bio to let other travelers know who you are.
+            No bio yet. Say something — even "I like tacos" works.
           </Text>
         )}
 
@@ -139,7 +151,10 @@ export default function ProfileScreen() {
       <View style={styles.actionsCard}>
         <TouchableOpacity
           style={styles.actionRow}
-          onPress={() => router.push('/profile/edit')}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push('/profile/edit');
+          }}
           activeOpacity={0.7}
         >
           <Text style={styles.actionLabel}>Edit Profile</Text>
@@ -165,9 +180,10 @@ export default function ProfileScreen() {
 
       {/* ── Developer Reset ── */}
       <TouchableOpacity style={styles.devResetButton} onPress={forceGlobalSignOut} activeOpacity={0.8}>
-        <Text style={styles.devResetText}>🛠 Developer Reset (Clear All Cache)</Text>
+        <Text style={styles.devResetText}>Developer Reset (Clear All Cache)</Text>
       </TouchableOpacity>
     </ScrollView>
+    </Animated.View>
   );
 }
 
@@ -177,24 +193,30 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    paddingHorizontal: 20,
-    gap: 16,
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.lg,
   },
 
   // ── Hero ──────────────────────────────────────────────────
   hero: {
     alignItems: 'center',
-    paddingVertical: 8,
-    gap: 10,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  avatarOuter: {
+    padding: 3,
+    borderRadius: (AVATAR_SIZE + 12) / 2,
+    backgroundColor: Colors.accentGlow,
   },
   avatarRing: {
-    width: AVATAR_SIZE + AVATAR_RING * 2 + 4,
-    height: AVATAR_SIZE + AVATAR_RING * 2 + 4,
-    borderRadius: (AVATAR_SIZE + AVATAR_RING * 2 + 4) / 2,
-    borderWidth: AVATAR_RING,
+    width: AVATAR_SIZE + 6,
+    height: AVATAR_SIZE + 6,
+    borderRadius: (AVATAR_SIZE + 6) / 2,
+    borderWidth: 3,
     borderColor: Colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Colors.background,
   },
   avatar: {
     width: AVATAR_SIZE,
@@ -210,61 +232,84 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarInitial: {
-    fontSize: 44,
+    fontSize: 42,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: Colors.textTertiary,
   },
   displayName: {
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: Colors.textPrimary,
-    letterSpacing: 0.3,
-    marginTop: 6,
+    letterSpacing: -0.5,
+    marginTop: Spacing.sm,
   },
-  countryLine: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-  },
-
-  // ── Stats ─────────────────────────────────────────────────
-  statsCard: {
+  countryPill: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingVertical: 22,
   },
-  statItem: {
+  countryFlag: {
+    fontSize: 16,
+  },
+  countryName: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+
+  // ── Stats — Premium individual cards ───────────────────────
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  statCard: {
     flex: 1,
     alignItems: 'center',
-    gap: 5,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
+    gap: 6,
+    ...Shadows.card,
   },
-  statBorder: {
-    borderRightWidth: 1,
-    borderRightColor: Colors.border,
+  statIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
   },
   statValue: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: Colors.textPrimary,
+    letterSpacing: -0.5,
   },
   statLabel: {
     fontSize: 11,
     fontWeight: '600',
     color: Colors.textTertiary,
     textTransform: 'uppercase',
-    letterSpacing: 0.9,
+    letterSpacing: 0.8,
   },
 
   // ── About card ────────────────────────────────────────────
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 20,
-    gap: 10,
+    padding: Spacing.xl,
+    gap: Spacing.sm,
   },
   cardTitle: {
     fontSize: 11,
@@ -277,19 +322,19 @@ const styles = StyleSheet.create({
   bioText: {
     fontSize: 15,
     color: Colors.textPrimary,
-    lineHeight: 23,
+    lineHeight: 24,
   },
   bioPlaceholder: {
     fontSize: 15,
     color: Colors.textTertiary,
     fontStyle: 'italic',
-    lineHeight: 23,
+    lineHeight: 24,
   },
   igRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 2,
+    marginTop: 4,
   },
   igIcon: {
     fontSize: 15,
@@ -297,13 +342,13 @@ const styles = StyleSheet.create({
   igHandle: {
     fontSize: 15,
     color: Colors.accent,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 
   // ── Actions ───────────────────────────────────────────────
   actionsCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     overflow: 'hidden',
@@ -312,7 +357,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: Spacing.xl,
     paddingVertical: 18,
   },
   actionLabel: {
@@ -328,18 +373,18 @@ const styles = StyleSheet.create({
   actionDivider: {
     height: 1,
     backgroundColor: Colors.border,
-    marginHorizontal: 20,
+    marginHorizontal: Spacing.xl,
   },
 
   // ── Log Out ───────────────────────────────────────────────
   logoutButton: {
     backgroundColor: Colors.errorBackground,
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Colors.errorBorder,
     paddingVertical: 18,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: Spacing.sm,
   },
   logoutText: {
     fontSize: 16,
@@ -349,9 +394,9 @@ const styles = StyleSheet.create({
 
   // ── Developer Reset ───────────────────────────────────────
   devResetButton: {
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: Colors.border,
     borderStyle: 'dashed',
     paddingVertical: 14,
     alignItems: 'center',
@@ -359,6 +404,6 @@ const styles = StyleSheet.create({
   devResetText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#475569',
+    color: Colors.textTertiary,
   },
 });

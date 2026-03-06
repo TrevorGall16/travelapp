@@ -1,28 +1,46 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import {
+  Dimensions,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, X } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
-import { Colors } from '../../constants/theme';
+import { Colors, Radius, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../stores/authStore';
 
 const AVATAR_SIZE = 108;
 const AVATAR_RING = 3;
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const GALLERY_THUMB = (SCREEN_WIDTH - 40 - 8) / 2; // 2-col grid with 8px gap
 
 export default function ProfilePreviewScreen() {
   const { profile } = useAuthStore();
   const insets = useSafeAreaInsets();
 
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+
   const homeCountry = COUNTRIES.find(c => c.code === profile?.country_code);
+  const photoUrls = profile?.photo_urls ?? [];
 
   const visitedData = (profile?.visited_countries ?? [])
     .map(code => COUNTRIES.find(c => c.code === code))
     .filter((c): c is NonNullable<typeof c> => c !== undefined);
 
+  const hasPersonaTags = (profile?.persona_tags?.length ?? 0) > 0;
   const hasTravelStyles = (profile?.travel_styles?.length ?? 0) > 0;
   const hasLanguages = (profile?.languages?.length ?? 0) > 0;
   const hasVisited = visitedData.length > 0;
+  const hasPhotos = photoUrls.length > 0;
 
   return (
     <View style={styles.flex}>
@@ -33,7 +51,6 @@ export default function ProfilePreviewScreen() {
           <Text style={styles.backLabel}>Profile</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Public View</Text>
-        {/* Spacer to balance the back button on the left */}
         <View style={styles.headerRight} />
       </View>
 
@@ -69,6 +86,28 @@ export default function ProfilePreviewScreen() {
           ) : null}
         </View>
 
+        {/* ── Photo Gallery ── */}
+        {hasPhotos ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Photos</Text>
+            <View style={styles.photoGrid}>
+              {photoUrls.map((url, i) => (
+                <TouchableOpacity
+                  key={`${url}-${i}`}
+                  activeOpacity={0.85}
+                  onPress={() => setPreviewUri(url)}
+                >
+                  <Image
+                    source={{ uri: url }}
+                    style={styles.galleryThumb}
+                    contentFit="cover"
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {/* ── About ── */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>About</Text>
@@ -76,7 +115,7 @@ export default function ProfilePreviewScreen() {
           {profile?.bio ? (
             <Text style={styles.bioText}>{profile.bio}</Text>
           ) : (
-            <Text style={styles.emptyText}>No bio added yet.</Text>
+            <Text style={styles.emptyText}>No bio yet. The mystery continues.</Text>
           )}
 
           {profile?.instagram_handle ? (
@@ -86,6 +125,20 @@ export default function ProfilePreviewScreen() {
             </View>
           ) : null}
         </View>
+
+        {/* ── Persona Tags ── */}
+        {hasPersonaTags ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Persona</Text>
+            <View style={styles.tagRow}>
+              {profile!.persona_tags.map(tag => (
+                <View key={tag} style={styles.personaTag}>
+                  <Text style={styles.personaTagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         {/* ── Travel Style ── */}
         {hasTravelStyles ? (
@@ -131,15 +184,45 @@ export default function ProfilePreviewScreen() {
           </View>
         ) : null}
 
-        {/* ── Empty state when nothing is filled in ── */}
-        {!profile?.bio && !hasTravelStyles && !hasLanguages && !hasVisited ? (
+        {/* ── Empty state ── */}
+        {!profile?.bio && !hasPersonaTags && !hasTravelStyles && !hasLanguages && !hasVisited && !hasPhotos ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyCardText}>
-              This profile is still being filled in.{'\n'}Tap Edit Profile to add more details.
+              Pretty blank so far.{'\n'}Hit Edit Profile to fill this in.
             </Text>
           </View>
         ) : null}
       </ScrollView>
+
+      {/* ── Full-Screen Photo Preview Modal ── */}
+      <Modal
+        visible={previewUri !== null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPreviewUri(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setPreviewUri(null)}>
+          <View style={[styles.modalCloseRow, { paddingTop: insets.top + 10 }]}>
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setPreviewUri(null)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <X size={22} color={Colors.white} strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
+
+          {previewUri && (
+            <Image
+              source={{ uri: previewUri }}
+              style={styles.modalImage}
+              contentFit="contain"
+            />
+          )}
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -238,6 +321,19 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
+  // ── Photo Gallery ─────────────────────────────────────────────
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  galleryThumb: {
+    width: GALLERY_THUMB,
+    height: GALLERY_THUMB,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.surfaceElevated,
+  },
+
   // ── Cards ────────────────────────────────────────────────────
   card: {
     backgroundColor: Colors.surface,
@@ -289,6 +385,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  personaTag: {
+    borderWidth: 1.5,
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentMuted,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  personaTagText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.accent,
   },
   accentTag: {
     backgroundColor: Colors.accentSubtle,
@@ -350,5 +459,31 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+
+  // ── Full-screen Preview Modal ────────────────────────────────
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseRow: {
+    position: 'absolute',
+    top: 0,
+    right: 16,
+    zIndex: 10,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_WIDTH,
   },
 });

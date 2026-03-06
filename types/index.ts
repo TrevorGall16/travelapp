@@ -10,6 +10,8 @@ export interface Profile {
   travel_styles: string[];
   languages: string[];
   visited_countries: string[];
+  persona_tags: string[];
+  photo_urls: string[];
   verification_status: VerificationStatus;
   push_token: string | null;
   events_hosted_count: number;

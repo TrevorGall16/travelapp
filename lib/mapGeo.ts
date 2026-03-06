@@ -99,6 +99,8 @@ export interface PinProperties {
   expiresAt: string;
   // TODO: join with profiles to populate once host verification is exposed by RPC
   hostVerified: boolean;
+  // TODO: populate from RPC join on profiles once available
+  hostAvatarUrl: string | null;
 }
 
 export type ClusterOutput =
@@ -108,7 +110,8 @@ export type ClusterOutput =
 export function eventsToGeoFeatures(
   events: Event[],
 ): Supercluster.PointFeature<PinProperties>[] {
-  // Jitter: offset co-located pins by ~1 m so they separate at high zoom
+  // Jitter: offset co-located pins by ~2 m so they physically separate at zoom 18+
+  const JITTER = 0.00002;
   const seen = new Map<string, number>(); // "lat,lon" → count
 
   return events.map((e) => {
@@ -116,9 +119,9 @@ export function eventsToGeoFeatures(
     const count = seen.get(key) ?? 0;
     seen.set(key, count + 1);
 
-    // Offset duplicates in a small spiral pattern (~1 m per step)
-    const jitterLat = count > 0 ? count * 0.00001 * Math.cos(count) : 0;
-    const jitterLon = count > 0 ? count * 0.00001 * Math.sin(count) : 0;
+    // Offset duplicates in a spiral pattern (~2 m per step)
+    const jitterLat = count > 0 ? count * JITTER * Math.cos(count) : 0;
+    const jitterLon = count > 0 ? count * JITTER * Math.sin(count) : 0;
 
     return {
       type: 'Feature',
@@ -133,6 +136,7 @@ export function eventsToGeoFeatures(
         participantCount: e.participant_count,
         expiresAt: e.expires_at,
         hostVerified: false,
+        hostAvatarUrl: null,
       },
     };
   });

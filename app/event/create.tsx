@@ -34,7 +34,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useLocationStore } from '../../stores/locationStore';
 import { useMapStore } from '../../stores/mapStore';
 import { formatExpiry } from '../../lib/eventFormatters';
-import { styles, ELECTRIC_BLUE } from '../../styles/createEventStyles';
+import { styles } from '../../styles/createEventStyles';
+import { Colors } from '../../constants/theme';
 import type { Event, EventCategory } from '../../types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -512,9 +513,9 @@ export default function CreateEventScreen() {
                   value={isVerified ? value : false}
                   onValueChange={isVerified ? onChange : undefined}
                   disabled={!isVerified}
-                  trackColor={{ false: '#334155', true: ELECTRIC_BLUE }}
-                  thumbColor="#FFFFFF"
-                  ios_backgroundColor="#334155"
+                  trackColor={{ false: Colors.border, true: Colors.accent }}
+                  thumbColor={Colors.white}
+                  ios_backgroundColor={Colors.border}
                 />
               </View>
             )}

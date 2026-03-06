@@ -1,4 +1,6 @@
 
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+
 export default {
   expo: {
     name: "Travel App",
@@ -17,7 +19,9 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.yourname.travelapp",
       config: {
-        usesNonExemptEncryption: false
+        usesNonExemptEncryption: false,
+        googleMapsApiKey: GOOGLE_MAPS_API_KEY
+
       },
       infoPlist: {
         NSLocationWhenInUseUsageDescription: "This app needs access to your location to show nearby travel events on the map.",
@@ -33,9 +37,9 @@ export default {
         monochromeImage: "./assets/android-icon-monochrome.png"
       },
       config: {
-        googleMaps: {
-          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
-        }
+ googleMaps: {
+  apiKey: GOOGLE_MAPS_API_KEY,
+}
       },
       permissions: [
         "ACCESS_COARSE_LOCATION",

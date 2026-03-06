@@ -20,6 +20,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 
@@ -217,8 +218,7 @@ export default function EventCard({ event, onDismiss }: Props) {
   // ── Dismiss ──────────────────────────────────────────────────────────────────
 
   const handleDismiss = useCallback(() => {
-    // Animate out, then notify parent. When the parent sets selectedEvent=null,
-    // currentEventIdRef.current is already null so the useEffect is a no-op.
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     slideOut(onDismiss);
   }, [slideOut, onDismiss]);
 
@@ -231,14 +231,15 @@ export default function EventCard({ event, onDismiss }: Props) {
 
     // Already participating → open chat immediately
     if (isMember || isHost) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const targetId = displayEvent.id;
       slideOut(onDismiss);
-      // Small delay so the slide-out starts before navigation
       setTimeout(() => router.push(`/event/${targetId}`), 300);
       return;
     }
 
     // ── Join flow ──
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsJoining(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -357,7 +358,7 @@ export default function EventCard({ event, onDismiss }: Props) {
                 {countdown}
               </Text>
               <Text style={styles.separator}>·</Text>
-              <Text style={styles.discoveryLabel}>Discovery Area</Text>
+              <Text style={styles.discoveryLabel}>Nearby</Text>
               {displayEvent.verified_only && (
                 <>
                   <Text style={styles.separator}>·</Text>
@@ -453,7 +454,7 @@ export default function EventCard({ event, onDismiss }: Props) {
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <Text style={styles.joinBtnText}>
-                  {isMember || isHost ? 'Open Chat  →' : 'Join Event'}
+                  {isMember || isHost ? 'Open chat →' : 'Count me in.'}
                 </Text>
               )}
             </Pressable>

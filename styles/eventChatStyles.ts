@@ -1,12 +1,12 @@
-// styles/eventChatStyles.ts — Styles extracted from app/event/[id].tsx
+// styles/eventChatStyles.ts — Premium event chat screen styles
 
-import { StyleSheet } from 'react-native';
-import { Colors } from '../constants/theme';
+import { Platform, StyleSheet } from 'react-native';
+import { Colors, Radius, Shadows, Spacing } from '../constants/theme';
 
-// STREAM_THEME is now centralized in constants/theme.ts
+// STREAM_THEME is centralized in constants/theme.ts
 export { STREAM_THEME } from '../constants/theme';
 
-// ─── MeetupBanner styles ──────────────────────────────────────────────────────
+// ─── MeetupBanner styles ────────────────────────────────────────────────────
 
 export const bannerStyles = StyleSheet.create({
   container: {
@@ -15,9 +15,9 @@ export const bannerStyles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 10,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 2,
+    gap: Spacing.sm + 2,
   },
   pin: { fontSize: 18 },
   info: { flex: 1 },
@@ -35,10 +35,11 @@ export const bannerStyles = StyleSheet.create({
     fontSize: 11,
     color: Colors.accent,
     marginTop: 2,
+    fontWeight: '500',
   },
 });
 
-// ─── Main screen styles ───────────────────────────────────────────────────────
+// ─── Main screen styles ─────────────────────────────────────────────────────
 
 export const styles = StyleSheet.create({
   container: {
@@ -49,12 +50,13 @@ export const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
-    padding: 24,
+    gap: Spacing.lg,
+    padding: Spacing.xxl,
   },
   loadingText: {
     color: Colors.textSecondary,
     fontSize: 15,
+    fontWeight: '500',
   },
   errorLabel: {
     fontSize: 18,
@@ -70,9 +72,10 @@ export const styles = StyleSheet.create({
   },
   goBackBtn: {
     backgroundColor: Colors.accent,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+    ...Shadows.accentGlow,
   },
   goBackBtnText: {
     color: Colors.white,
@@ -80,18 +83,19 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // ── Header ────────────────────────────────────────────────────────────────
+  // ── Header ──────────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.surface,
-    gap: 10,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+    gap: Spacing.sm + 2,
   },
   backButton: {
-    padding: 4,
+    padding: Spacing.xs,
   },
   backArrow: {
     fontSize: 22,
@@ -100,9 +104,10 @@ export const styles = StyleSheet.create({
   },
   headerTitle: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
     color: Colors.textPrimary,
+    letterSpacing: -0.2,
   },
   headerRight: {
     flexDirection: 'row',
@@ -112,7 +117,7 @@ export const styles = StyleSheet.create({
   participantBadge: {
     fontSize: 14,
     color: Colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   menuDots: {
     fontSize: 16,
@@ -120,15 +125,15 @@ export const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  // ── Join bar ──────────────────────────────────────────────────────────────
+  // ── Join bar ────────────────────────────────────────────────────────────
   joinBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 2,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
   joinButton: {
-    borderRadius: 12,
+    borderRadius: Radius.md,
     paddingVertical: 13,
     alignItems: 'center',
     justifyContent: 'center',
@@ -136,6 +141,7 @@ export const styles = StyleSheet.create({
   },
   joinButtonAccent: {
     backgroundColor: Colors.accent,
+    ...Shadows.accentGlow,
   },
   joinButtonDisabled: {
     backgroundColor: Colors.surface,
@@ -157,27 +163,28 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // ── Expired banner ────────────────────────────────────────────────────────
+  // ── Expired banner ──────────────────────────────────────────────────────
   expiredBanner: {
     backgroundColor: Colors.errorBackground,
     borderBottomWidth: 1,
     borderBottomColor: Colors.errorBorder,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   expiredText: {
     color: Colors.errorLight,
     fontSize: 13,
     textAlign: 'center',
+    fontWeight: '500',
   },
 
-  // ── Deleting overlay ──────────────────────────────────────────────────────
+  // ── Deleting overlay ────────────────────────────────────────────────────
   deletingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: Colors.modalBackdrop,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
+    gap: Spacing.lg,
     zIndex: 100,
   },
   deletingText: {
@@ -186,31 +193,33 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // ── Shared bottom-sheet chrome ────────────────────────────────────────────
+  // ── Shared bottom-sheet chrome ──────────────────────────────────────────
   sheetOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: Colors.modalBackdrop,
   },
   sheetHandle: {
-    width: 36,
-    height: 4,
+    width: 40,
+    height: 5,
     backgroundColor: Colors.border,
-    borderRadius: 2,
+    borderRadius: 3,
     alignSelf: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
 
-  // ── Options modal ─────────────────────────────────────────────────────────
+  // ── Options modal ───────────────────────────────────────────────────────
   optionsSheet: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
-    paddingHorizontal: 20,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderTopWidth: 1,
+    borderColor: Colors.border,
   },
   optionRow: {
     paddingVertical: 17,
@@ -229,31 +238,29 @@ export const styles = StyleSheet.create({
     color: Colors.error,
   },
 
-  // ── Meetup KAV wrapper ────────────────────────────────────────────────────
+  // ── Meetup KAV wrapper ──────────────────────────────────────────────────
   meetupKAV: {
     flex: 1,
     justifyContent: 'flex-end',
   },
 
-  // ── Delete confirm modal ──────────────────────────────────────────────────
+  // ── Delete confirm modal ────────────────────────────────────────────────
   deleteConfirmOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: Colors.modalBackdrop,
   },
   deleteConfirmCard: {
     position: 'absolute',
-    left: 32,
-    right: 32,
+    left: Spacing.xxxl,
+    right: Spacing.xxxl,
     top: '40%',
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 24,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
+    borderRadius: Radius.lg,
+    padding: Spacing.xxl,
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.heavy,
   },
   deleteConfirmTitle: {
     fontSize: 18,
@@ -269,13 +276,13 @@ export const styles = StyleSheet.create({
   },
   deleteConfirmActions: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
+    gap: Spacing.sm + 2,
+    marginTop: Spacing.xs,
   },
   deleteConfirmCancelBtn: {
     flex: 1,
     paddingVertical: 13,
-    borderRadius: 10,
+    borderRadius: Radius.md,
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -289,7 +296,7 @@ export const styles = StyleSheet.create({
   deleteConfirmDeleteBtn: {
     flex: 1,
     paddingVertical: 13,
-    borderRadius: 10,
+    borderRadius: Radius.md,
     backgroundColor: Colors.error,
     alignItems: 'center',
   },
@@ -299,24 +306,26 @@ export const styles = StyleSheet.create({
     color: Colors.white,
   },
 
-  // ── Meetup point modal ────────────────────────────────────────────────────
+  // ── Meetup point modal ──────────────────────────────────────────────────
   meetupSheet: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-    gap: 12,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
+    borderTopWidth: 1,
+    borderColor: Colors.border,
   },
   meetupSheetTitle: {
     fontSize: 17,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginTop: 4,
+    marginTop: Spacing.xs,
   },
   meetupSheetSubtitle: {
     fontSize: 14,
@@ -327,21 +336,21 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
+    borderRadius: Radius.md,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Spacing.md,
     fontSize: 15,
     color: Colors.textPrimary,
   },
   meetupActions: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
+    gap: Spacing.sm + 2,
+    marginTop: Spacing.xs,
   },
   meetupCancelBtn: {
     flex: 1,
     paddingVertical: 13,
-    borderRadius: 10,
+    borderRadius: Radius.md,
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -355,9 +364,10 @@ export const styles = StyleSheet.create({
   meetupConfirmBtn: {
     flex: 1,
     paddingVertical: 13,
-    borderRadius: 10,
+    borderRadius: Radius.md,
     backgroundColor: Colors.accent,
     alignItems: 'center',
+    ...Shadows.accentGlow,
   },
   meetupConfirmBtnDisabled: {
     opacity: 0.5,
@@ -368,7 +378,7 @@ export const styles = StyleSheet.create({
     color: Colors.white,
   },
 
-  // ── Members modal ─────────────────────────────────────────────────────────
+  // ── Members modal ───────────────────────────────────────────────────────
   membersSheet: {
     position: 'absolute',
     bottom: 0,
@@ -376,27 +386,29 @@ export const styles = StyleSheet.create({
     right: 0,
     maxHeight: '70%',
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    paddingTop: Spacing.md,
     paddingHorizontal: 0,
+    borderTopWidth: 1,
+    borderColor: Colors.border,
   },
   membersTitle: {
     fontSize: 17,
     fontWeight: '700',
     color: Colors.textPrimary,
     textAlign: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    gap: 12,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    gap: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
@@ -404,9 +416,9 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   memberAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: Colors.border,
     flexShrink: 0,
   },
@@ -427,12 +439,12 @@ export const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   hostBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: Colors.accentSubtle ?? Colors.surface,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.accentMuted,
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentGlow,
   },
   hostBadgeText: {
     fontSize: 11,

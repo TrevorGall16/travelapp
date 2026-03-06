@@ -1,19 +1,20 @@
-// styles/mapScreenStyles.ts — Styles extracted from app/(tabs)/index.tsx
+// styles/mapScreenStyles.ts — Premium map screen styles
 
 import { Platform, StyleSheet } from 'react-native';
-import { Colors } from '../constants/theme';
+import { Colors, Radius, Shadows, Spacing } from '../constants/theme';
 
 export const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: Colors.background },
-  centeredFill: { justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 },
-  map: { flex: 1 },
+  fill: { flex: 1 },
+  centeredFill: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xxl, gap: Spacing.lg, backgroundColor: Colors.background },
+  mapContainer: { flex: 1, backgroundColor: 'transparent' },
+  map: { flex: 1, minHeight: 500 },
 
   // Map header bar
   mapHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
     backgroundColor: Colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
@@ -24,11 +25,11 @@ export const styles = StyleSheet.create({
   },
   appName: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: Colors.textPrimary,
     textAlign: 'center',
-    letterSpacing: 0.4,
+    letterSpacing: -0.3,
   },
   mapHeaderActions: {
     flex: 1,
@@ -38,24 +39,21 @@ export const styles = StyleSheet.create({
     gap: 4,
   },
   iconBtn: {
-    padding: 8,
+    padding: Spacing.sm,
+    borderRadius: Radius.sm,
   },
 
-  // Cluster bubble
+  // Cluster bubble — premium ring + shadow
   clusterMarker: {
     backgroundColor: Colors.accent,
-    borderRadius: 24,
-    width: 44,
-    height: 44,
+    borderRadius: Radius.full,
+    width: 46,
+    height: 46,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: Colors.white,
-    shadowColor: Colors.background,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 5,
+    ...Shadows.medium,
   },
   clusterCount: {
     color: Colors.white,
@@ -63,81 +61,66 @@ export const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Individual pin (teardrop: circle body + triangular tail)
+  // Individual pin — avatar-circle style (no tail, white ring)
   pinContainer: {
     alignItems: 'center',
   },
   pinVerifiedRing: {
-    borderRadius: 28,
+    borderRadius: 30,
     borderWidth: 2.5,
     borderColor: Colors.accent,
     padding: 2,
   },
   pinBody: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.surface,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.surfaceElevated,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.background,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 5,
+    borderWidth: 2.5,
+    borderColor: Colors.white,
+    ...Shadows.medium,
   },
   pinEmoji: { fontSize: 22 },
-  pinTail: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderTopWidth: 10,
-    borderLeftColor: Colors.transparent,
-    borderRightColor: Colors.transparent,
-    borderTopColor: Colors.surface,
-    marginTop: -1,
-  },
 
-  // Empty state — sits just below the map header, well above the FAB
+  // Empty state
   emptyBanner: {
     position: 'absolute',
     top: 100,
     alignSelf: 'center',
     backgroundColor: Colors.overlayStrong,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: Colors.border,
+    ...Shadows.card,
   },
   emptyText: {
     color: Colors.textSecondary,
     fontSize: 14,
     textAlign: 'center',
+    fontWeight: '500',
   },
 
-  // Recenter FAB — sits above the create FAB
+  // Recenter FAB
   recenterFab: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 188 : 168,
     right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.background,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 6,
+    ...Shadows.medium,
   },
 
-  // Create FAB — z-index: rendered conditionally (hidden when EventCard sheet is open)
+  // Create FAB
   fab: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 116 : 96,
@@ -148,37 +131,58 @@ export const styles = StyleSheet.create({
     backgroundColor: Colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
+    ...Shadows.accentGlow,
   },
 
-  // Permission denied
+  // Permission denied overlay
+  permissionIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.accentGlow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  permissionTitle: {
+    color: Colors.textPrimary,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    textAlign: 'center',
+  },
   permissionText: {
     color: Colors.textSecondary,
-    fontSize: 16,
+    fontSize: 15,
     textAlign: 'center',
-    lineHeight: 26,
+    lineHeight: 24,
+    maxWidth: 260,
   },
   permissionBtn: {
     backgroundColor: Colors.accent,
-    paddingHorizontal: 28,
+    paddingHorizontal: 32,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: Radius.full,
+    marginTop: Spacing.sm,
+    ...Shadows.accentGlow,
   },
   permissionBtnText: {
     color: Colors.white,
     fontSize: 16,
     fontWeight: '700',
   },
+  permissionSettingsLink: {
+    color: Colors.textTertiary,
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: Spacing.md,
+  },
 
-  // Custom user location dot (replaces native showsUserLocation)
+  // Custom user location dot
   userDotOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: Colors.accentSubtle,
     justifyContent: 'center',
     alignItems: 'center',
@@ -188,14 +192,14 @@ export const styles = StyleSheet.create({
     height: 14,
     borderRadius: 7,
     backgroundColor: Colors.accent,
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: Colors.white,
   },
 
-  // ── Filter Modal ──────────────────────────────────────────────
+  // ── Filter / Stacked Modal ──────────────────────────────────────────
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: Colors.modalBackdrop,
   },
   filterSheet: {
     position: 'absolute',
@@ -203,18 +207,20 @@ export const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 12,
-    paddingHorizontal: 20,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderTopWidth: 1,
+    borderColor: Colors.border,
   },
   filterHandle: {
-    width: 36,
-    height: 4,
+    width: 40,
+    height: 5,
     backgroundColor: Colors.border,
-    borderRadius: 2,
+    borderRadius: 3,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   filterTitle: {
     fontSize: 13,
@@ -222,19 +228,17 @@ export const styles = StyleSheet.create({
     color: Colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    paddingVertical: Spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.border,
   },
-  filterRowActive: {
-    // No background change — checkmark + accent text convey selection
-  },
+  filterRowActive: {},
   filterRowLabel: {
     fontSize: 16,
     fontWeight: '500',

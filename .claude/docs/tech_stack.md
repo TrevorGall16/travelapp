@@ -11,6 +11,8 @@
 2. **No redundant libraries:** If a feature can be built with the approved stack below, do not install a new package.
 3. **TypeScript Strict Mode:** All code must be strongly typed. No `any` types.
 4. **Zero-UI-Library Policy:** Do not install UI Kitten, React Native Paper, Tamagui, or NativeBase. Build components from scratch using the styling engine defined below.
+5. **Native Tooling (4.6):** Always use `text_editor_20250728` for file edits. Do not use the `undo_edit` command. If a fix fails, perform a manual revert via a new `Edit` call.
+6. **Sampling Consistency:** Use strictly `temperature` OR `top_p` for API calls, never both.
 
 ---
 

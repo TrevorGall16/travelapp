@@ -45,7 +45,7 @@ Every flow must be implementable without ambiguity. Each step = one distinct scr
 6. Floating Action Button (FAB) bottom-right: "+" (electric blue) to create event.
 7. Bottom navigation bar (3 tabs): Map (active) | My Events | Profile.
 
-**Empty state (no events nearby):** Map visible, no pins. Banner shows "No events nearby. Drop a pin to start one!" FAB still visible.
+**Empty state (no events nearby):** Map visible, no pins. Banner shows "Nothing nearby yet. Drop the first pin." FAB still visible.
 
 **List View Toggle:** Vertical scroll of event cards sorted by expiry soonest first. Remembers last selected sort filter for the session.
 
@@ -80,10 +80,10 @@ Every flow must be implementable without ambiguity. Each step = one distinct scr
    - Event title + Category emoji.
    - Host name, avatar, verified badge.
    - Countdown timer (Green >60m, Yellow 60-30m, Red <30m).
-   - "Discovery Area" label for the pin location.
+   - "Nearby" label for the pin location.
    - "Official Meetup Point" section (shows address if set, or "Not decided yet").
    - Participant count + up to 5 avatars.
-   - Buttons: "Join Event" (primary, electric blue), Share, Report.
+   - Buttons: "Count me in." (primary, electric blue), Share, Report.
 2. **Tap "Join Event":** Confirm join -> add user to participant list -> add user to Stream group chat -> navigate to Group Chat Screen.
 
 ---
