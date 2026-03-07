@@ -28,24 +28,24 @@ export default {
         NSLocationAlwaysAndWhenInUseUsageDescription: "This app needs access to your location to notify you of nearby travel meetups even when the app is in the background."
       }
     },
-    android: {
-      package: "com.yourname.travelapp",
-      adaptiveIcon: {
-        backgroundColor: "#E6F4FE",
-        foregroundImage: "./assets/android-icon-foreground.png",
-        backgroundImage: "./assets/android-icon-background.png",
-        monochromeImage: "./assets/android-icon-monochrome.png"
-      },
-      config: {
- googleMaps: {
-  apiKey: GOOGLE_MAPS_API_KEY,
-}
-      },
-      permissions: [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "FOREGROUND_SERVICE"
-      ],
+android: {
+  package: "com.yourname.travelapp",
+  adaptiveIcon: {
+    backgroundColor: "#E6F4FE",
+    foregroundImage: "./assets/android-icon-foreground.png",
+    backgroundImage: "./assets/android-icon-background.png",
+    monochromeImage: "./assets/android-icon-monochrome.png"
+  },
+  config: {
+    googleMaps: {
+      apiKey: GOOGLE_MAPS_API_KEY,
+    }
+  },
+  permissions: [
+    "ACCESS_COARSE_LOCATION",
+    "ACCESS_FINE_LOCATION",
+    "FOREGROUND_SERVICE"
+  ],
       predictiveBackGestureEnabled: false,
       softwareKeyboardLayoutMode: "resize",
       navigationBar: {
@@ -54,7 +54,7 @@ export default {
         barStyle: "light-content"
       },
       statusBar: {
-        translucent: false
+        translucent: true
       }
     },
     web: {

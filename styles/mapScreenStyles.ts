@@ -7,7 +7,7 @@ export const styles = StyleSheet.create({
   fill: { flex: 1 },
   centeredFill: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xxl, gap: Spacing.lg, backgroundColor: Colors.background },
   mapContainer: { flex: 1, backgroundColor: 'transparent' },
-  map: { flex: 1, minHeight: 500 },
+  map: { flex: 1 },
 
   // Map header bar
   mapHeader: {
