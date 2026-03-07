@@ -21,6 +21,7 @@ import { useAuthStore } from '../../stores/authStore';
 import type { EventCategory } from '../../types';
 import { CATEGORY_EMOJI } from '../../constants/categories';
 import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
+import { ActionModal, ConfirmModal } from '../../components/ActionModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -232,81 +233,81 @@ export default function MyEventsScreen() {
     fetchMyEvents();
   }, [fetchMyEvents]);
 
-  // ── Long-press context menu ──────────────────────────────────────────────
+  // ── Long-press modal state ──────────────────────────────────────────────
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<EventRow | null>(null);
+  const [selectedIsHost, setSelectedIsHost] = useState(false);
+
   const handleLongPress = useCallback(
     (item: EventRow, isHost: boolean) => {
-      const buttons: Array<{ text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }> = [];
-
-      if (isHost) {
-        buttons.push({
-          text: 'Delete Event',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) { Alert.alert('Session Expired'); return; }
-              const res = await fetch(
-                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-event`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-                  },
-                  body: JSON.stringify({ event_id: item.id }),
-                },
-              );
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || 'Delete failed.');
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              fetchMyEvents();
-            } catch (err) {
-              Alert.alert('Error', err instanceof Error ? err.message : 'Could not delete event.');
-            }
-          },
-        });
-      } else {
-        buttons.push({
-          text: 'Leave Event',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) { Alert.alert('Session Expired'); return; }
-              const res = await fetch(
-                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-                  },
-                  body: JSON.stringify({ event_id: item.id }),
-                },
-              );
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || 'Leave failed.');
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              fetchMyEvents();
-            } catch (err) {
-              Alert.alert('Error', err instanceof Error ? err.message : 'Could not leave event.');
-            }
-          },
-        });
-      }
-
-      buttons.push({ text: 'Cancel', style: 'cancel' });
-
-      Alert.alert(
-        item.title,
-        isHost ? 'You are the host of this event.' : 'You are a participant in this event.',
-        buttons,
-      );
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setSelectedItem(item);
+      setSelectedIsHost(isHost);
+      setActionModalVisible(true);
     },
-    [fetchMyEvents],
+    [],
   );
+
+  const handleActionPress = useCallback(() => {
+    setActionModalVisible(false);
+    if (selectedIsHost) {
+      // Host delete → show double-confirm
+      setConfirmModalVisible(true);
+    } else {
+      // Participant leave → execute immediately
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) { Alert.alert('Session Expired'); return; }
+          const res = await fetch(
+            `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+                'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+              },
+              body: JSON.stringify({ event_id: selectedItem?.id }),
+            },
+          );
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Leave failed.');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          fetchMyEvents();
+        } catch (err) {
+          Alert.alert('Error', err instanceof Error ? err.message : 'Could not leave event.');
+        }
+      })();
+    }
+  }, [selectedItem, selectedIsHost, fetchMyEvents]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    setConfirmModalVisible(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { Alert.alert('Session Expired'); return; }
+      const res = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-event`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+          },
+          body: JSON.stringify({ event_id: selectedItem?.id }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      fetchMyEvents();
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Could not delete event.');
+    }
+  }, [selectedItem, fetchMyEvents]);
 
   // ── Section data ───────────────────────────────────────────────────────
 
@@ -385,6 +386,28 @@ export default function MyEventsScreen() {
           />
         }
         contentContainerStyle={styles.listContent}
+      />
+
+      <ActionModal
+        visible={actionModalVisible}
+        onClose={() => setActionModalVisible(false)}
+        title={selectedItem?.title ?? ''}
+        subtitle={selectedIsHost ? 'You are the host of this event.' : 'You are a participant in this event.'}
+        actions={[
+          {
+            label: selectedIsHost ? 'Delete Event' : 'Leave Event',
+            destructive: true,
+            onPress: handleActionPress,
+          },
+        ]}
+      />
+
+      <ConfirmModal
+        visible={confirmModalVisible}
+        onClose={() => setConfirmModalVisible(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Event?"
+        body="This action is permanent. Are you sure?"
       />
     </SafeAreaView>
   );

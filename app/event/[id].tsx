@@ -36,6 +36,18 @@ import { DeleteConfirmModal } from '../../components/chat/DeleteConfirmModal';
 import { MembersModal } from '../../components/chat/MembersModal';
 import type { MemberEntry } from '../../components/chat/MembersModal';
 
+// ─── Sender Name Header ─────────────────────────────────────────────────────
+// Shows the sender's display name above their message in group chat.
+
+function SenderNameHeader({ message, alignment }: { message?: any; alignment?: string }) {
+  if (!message?.user?.name || alignment === 'right') return null;
+  return (
+    <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.textTertiary, marginBottom: 2, marginLeft: 4 }}>
+      {message.user.name}
+    </Text>
+  );
+}
+
 // ─── Mock Testing Data ───────────────────────────────────────────────────────
 // Activated when eventId === "test-paris". Bypasses all Supabase fetching.
 // Stream Chat connects to the "paris-sandbox" public channel instead.
@@ -729,6 +741,8 @@ return (
               keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
               enableMessageReactions
               enableMessageReplies
+              forceAlignMessages="left"
+              MessageHeader={SenderNameHeader}
               MessageSimple={BlockFilteredMessageSimple}
               messageActions={({ message, dismissOverlay }) => {
                 const actions = [
@@ -752,10 +766,12 @@ return (
                 return actions;
               }}
             >
-              <MessageList noGroupByUser showUserAvatars />
+              <MessageList
+                noGroupByUser
+              />
 
               {(isParticipant || isHost) && (
-                <View style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0 }}>
+                <View style={{ paddingBottom: insets.bottom }}>
                   <MessageInput />
                 </View>
               )}

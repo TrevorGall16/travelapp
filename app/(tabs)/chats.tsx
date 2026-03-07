@@ -20,6 +20,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { Colors, Radius, Spacing, STREAM_THEME } from '../../constants/theme';
 import { purgeGhostChannels } from '../../lib/streamCleanup';
+import { ActionModal } from '../../components/ActionModal';
 
 // ─── Ghost Channel Purge ─────────────────────────────────────────────────────
 // Cross-references Stream channels with Supabase events.
@@ -75,10 +76,13 @@ function relativeTime(date?: string | Date | null): string {
 // ─── Custom channel preview row ──────────────────────────────────────────────
 
 function EventChannelPreview(
-  props: ChannelPreviewUIComponentProps & { validEventIds?: Set<string> },
+  props: ChannelPreviewUIComponentProps & {
+    validEventIds?: Set<string>;
+    onRequestLeave?: (channelName: string, eventId: string) => void;
+  },
 ) {
   const router = useRouter();
-  const { channel, latestMessagePreview, unreadCount, validEventIds } = props;
+  const { channel, latestMessagePreview, unreadCount, validEventIds, onRequestLeave } = props;
 
   const rawId = channel.id ?? '';
   const eventId = rawId.startsWith('event_') ? rawId.slice('event_'.length) : rawId;
@@ -107,41 +111,8 @@ function EventChannelPreview(
 
   const handleLongPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      channelName,
-      undefined,
-      [
-        {
-          text: 'Leave Chat',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) { Alert.alert('Session Expired'); return; }
-              const res = await fetch(
-                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-                  },
-                  body: JSON.stringify({ event_id: eventId }),
-                },
-              );
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || 'Leave failed.');
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch (err) {
-              Alert.alert('Error', err instanceof Error ? err.message : 'Could not leave chat.');
-            }
-          },
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-    );
-  }, [channelName, eventId]);
+    onRequestLeave?.(channelName, eventId);
+  }, [channelName, eventId, onRequestLeave]);
 
   return (
     <Pressable
@@ -268,6 +239,42 @@ export default function ChatsScreen() {
   const { user } = useAuthStore();
   const [validEventIds, setValidEventIds] = useState<Set<string>>(new Set());
 
+  // ── Leave chat modal state ──
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [leaveChannelName, setLeaveChannelName] = useState('');
+  const [leaveEventId, setLeaveEventId] = useState('');
+
+  const handleRequestLeave = useCallback((channelName: string, eventId: string) => {
+    setLeaveChannelName(channelName);
+    setLeaveEventId(eventId);
+    setActionModalVisible(true);
+  }, []);
+
+  const handleLeaveConfirm = useCallback(async () => {
+    setActionModalVisible(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { Alert.alert('Session Expired'); return; }
+      const res = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+          },
+          body: JSON.stringify({ event_id: leaveEventId }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Leave failed.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Could not leave chat.');
+    }
+  }, [leaveEventId]);
+
   // Fetch valid event IDs on mount + every focus to catch newly deleted events
   useFocusEffect(
     useCallback(() => {
@@ -322,7 +329,7 @@ export default function ChatsScreen() {
           filters={{ type: 'messaging', members: { $in: [user.id] } }}
           sort={{ last_message_at: -1 }}
           Preview={(previewProps) => (
-            <EventChannelPreview {...previewProps} validEventIds={validEventIds} />
+            <EventChannelPreview {...previewProps} validEventIds={validEventIds} onRequestLeave={handleRequestLeave} />
           )}
           EmptyStateIndicator={() => (
             <View style={styles.emptyState}>
@@ -335,6 +342,19 @@ export default function ChatsScreen() {
           )}
         />
       </Chat>
+
+      <ActionModal
+        visible={actionModalVisible}
+        onClose={() => setActionModalVisible(false)}
+        title={leaveChannelName}
+        actions={[
+          {
+            label: 'Leave Chat',
+            destructive: true,
+            onPress: handleLeaveConfirm,
+          },
+        ]}
+      />
     </SafeAreaView>
   );
 }

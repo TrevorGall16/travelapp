@@ -106,7 +106,7 @@ export default function ProfileScreen() {
     >
       {/* ── Hero ── */}
       <View style={styles.hero}>
-        <TouchableOpacity onPress={() => openViewer(0)} activeOpacity={0.85}>
+        <TouchableOpacity onPress={() => router.push('/profile/preview')} activeOpacity={0.85}>
           <View style={styles.avatarOuter}>
             <View style={styles.avatarRing}>
               {profile?.avatar_url ? (
