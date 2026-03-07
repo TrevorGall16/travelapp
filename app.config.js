@@ -29,23 +29,23 @@ export default {
       }
     },
 android: {
-  package: "com.yourname.travelapp",
-  adaptiveIcon: {
-    backgroundColor: "#E6F4FE",
-    foregroundImage: "./assets/android-icon-foreground.png",
-    backgroundImage: "./assets/android-icon-background.png",
-    monochromeImage: "./assets/android-icon-monochrome.png"
-  },
-  config: {
-    googleMaps: {
-      apiKey: GOOGLE_MAPS_API_KEY,
-    }
-  },
-  permissions: [
-    "ACCESS_COARSE_LOCATION",
-    "ACCESS_FINE_LOCATION",
-    "FOREGROUND_SERVICE"
-  ],
+      package: "com.yourname.travelapp",
+      adaptiveIcon: {
+        backgroundColor: "#E6F4FE",
+        foregroundImage: "./assets/android-icon-foreground.png",
+        backgroundImage: "./assets/android-icon-background.png",
+        monochromeImage: "./assets/android-icon-monochrome.png"
+      },
+      config: {
+        googleMaps: {
+          apiKey: GOOGLE_MAPS_API_KEY,
+        }
+      },
+      permissions: [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE"
+      ],
       predictiveBackGestureEnabled: false,
       softwareKeyboardLayoutMode: "resize",
       navigationBar: {
@@ -67,7 +67,16 @@ android: {
       [
         "expo-location",
         {
-          locationAlwaysAndWhenInUsePermission: "Allow Travel App to use your location."
+          "locationAlwaysAndWhenInUsePermission": "Allow Travel App to use your location."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "hardwareAccelerated": true,
+            "useLegacyPackaging": true
+          }
         }
       ]
     ]

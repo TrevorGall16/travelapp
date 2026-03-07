@@ -44,7 +44,12 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (eventError || !event) throw new Error('Event not found');
-    if (event.status !== 'active') throw new Error('EVENT_EXPIRED');
+    if (event.status !== 'active') {
+      return new Response(
+        JSON.stringify({ code: 'EVENT_EXPIRED', error: 'This event has already expired.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
 
     // 3b. Enforce verified_only gate
     if (event.verified_only) {
@@ -146,7 +151,7 @@ Deno.serve(async (req: Request) => {
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: error.message === 'EVENT_EXPIRED' ? 200 : 400,
+      status: 400,
     });
   }
 });

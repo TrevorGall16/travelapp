@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -103,10 +105,50 @@ function EventChannelPreview(
 
   const hasUnread = (unreadCount ?? 0) > 0;
 
+  const handleLongPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      channelName,
+      undefined,
+      [
+        {
+          text: 'Leave Chat',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) { Alert.alert('Session Expired'); return; }
+              const res = await fetch(
+                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+                  },
+                  body: JSON.stringify({ event_id: eventId }),
+                },
+              );
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Leave failed.');
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Could not leave chat.');
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  }, [channelName, eventId]);
+
   return (
     <Pressable
       style={({ pressed }) => [rowStyles.row, pressed && rowStyles.rowPressed]}
       onPress={() => eventId && router.push(`/event/${eventId}`)}
+      onLongPress={handleLongPress}
+      delayLongPress={400}
       accessibilityRole="button"
       accessibilityLabel={`Open ${channelName} chat`}
     >

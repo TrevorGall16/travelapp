@@ -100,21 +100,20 @@ export default function EditProfileScreen() {
   const pickPhotos = async () => {
     if (photos.length >= MAX_PHOTOS) return;
 
-    const remaining = MAX_PHOTOS - photos.length;
+    // Single-select with native 1:1 crop editor — each photo gets individual
+    // attention. allowsEditing only works with allowsMultipleSelection=false.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      selectionLimit: remaining,
+      allowsMultipleSelection: false,
+      allowsEditing: true,
+      aspect: [1, 1],
       quality: 0.8,
     });
 
     if (result.canceled || result.assets.length === 0) return;
 
-    const newPhotos: PhotoItem[] = result.assets
-      .slice(0, remaining)
-      .map(asset => ({ uri: asset.uri, isLocal: true }));
-
-    setPhotos(prev => [...prev, ...newPhotos]);
+    const asset = result.assets[0];
+    setPhotos(prev => [...prev, { uri: asset.uri, isLocal: true }]);
   };
 
   const removePhoto = (index: number) => {
@@ -221,7 +220,7 @@ export default function EditProfileScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: Platform.OS === 'android' ? 100 : insets.bottom + 40 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

@@ -12,7 +12,9 @@
       "Bash(ls:*)",
       "Bash(xargs wc:*)",
       "Bash(npx supabase:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm ls:*)",
+      "Bash(grep:*)"
     ]
   }
 }

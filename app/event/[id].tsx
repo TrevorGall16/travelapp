@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   Text,
@@ -20,9 +19,8 @@ import {
   MessageInput,
   MessageList,
   MessageSimple,
-  useMessageContext,
 } from 'stream-chat-expo';
-import type { Channel as StreamChannel, MessageResponse, MessageType } from 'stream-chat';
+import type { Channel as StreamChannel, MessageResponse } from 'stream-chat';
 
 import { supabase } from '../../lib/supabase';
 import { streamClient } from '../../lib/streamClient';
@@ -141,14 +139,21 @@ export default function EventChatScreen() {
 
   // ── Blocked users — hide their messages in the chat ─────────────────────
   const blockedUserIds = useBlockedUsers();
-  const BlockFilteredMessage = useCallback(
+  const blockedRef = useRef(blockedUserIds);
+  blockedRef.current = blockedUserIds;
+
+  // Stable component reference — uses a ref so the function identity never
+  // changes, preventing Channel from unmounting/remounting the message tree.
+  // Passed as `MessageSimple` (not `Message`) so the SDK's Message wrapper
+  // still provides MessageContext (isMessageAIGenerated, reactions, etc.).
+  const BlockFilteredMessageSimple = useCallback(
     (props: any) => {
-      if (blockedUserIds.size > 0 && blockedUserIds.has(props.message?.user?.id)) {
+      if (blockedRef.current.size > 0 && blockedRef.current.has(props.message?.user?.id)) {
         return null;
       }
       return <MessageSimple {...props} />;
     },
-    [blockedUserIds],
+    [], // stable — reads blockedUserIds via ref
   );
 
   // ── 5-second timeout: surface the error instead of spinning forever ────────
@@ -713,28 +718,20 @@ return (
         )}
 
         {/* ── Stream Chat Container ── */}
-        {/* iOS: Stream's KeyboardCompatibleView handles avoidance natively.
-            Android: behavior="height" + offset tuned for header (56) + safe area.
-            "height" works better than "padding" on Android — it resizes the
-            container instead of adding bottom padding, which prevents the
-            MessageInput from getting pushed off-screen on short devices. */}
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'android' ? 'height' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'android' ? insets.top + 56 : 0}
-        >
+        {/* Android: softwareKeyboardLayoutMode="resize" in app.config.js handles
+            keyboard avoidance natively — no KAV needed. Stream's KCV is disabled
+            to prevent double-adjustment.
+            iOS: Stream's built-in KeyboardCompatibleView handles avoidance. */}
           <Chat client={streamClient} style={STREAM_THEME}>
             <Channel
               channel={streamChannel}
               disableKeyboardCompatibleView={Platform.OS === 'android'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
               enableMessageReactions
               enableMessageReplies
-              Message={BlockFilteredMessage}
+              MessageSimple={BlockFilteredMessageSimple}
               messageActions={({ message, dismissOverlay }) => {
                 const actions = [
-                  // Built-in actions (React / Reply) are handled by the
-                  // enableMessageReactions + enableMessageReplies props above.
-                  // This callback adds custom actions to the overlay menu.
                   {
                     title: 'Report',
                     icon: undefined,
@@ -758,13 +755,12 @@ return (
               <MessageList noGroupByUser showUserAvatars />
 
               {(isParticipant || isHost) && (
-                <View style={{ paddingBottom: insets.bottom }}>
+                <View style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0 }}>
                   <MessageInput />
                 </View>
               )}
             </Channel>
           </Chat>
-        </KeyboardAvoidingView>
 
         {/* ── Overlays & Modals ── */}
         {isDeleting && (

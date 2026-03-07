@@ -1,11 +1,10 @@
 import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Dimensions,
-  Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,25 +12,45 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, X } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
 import { Colors, Radius, Spacing } from '../../constants/theme';
 import { useAuthStore } from '../../stores/authStore';
-import Gallery from '../../components/profile/Gallery';
+import ImageViewer from '../../components/profile/ImageViewer';
 
 const AVATAR_SIZE = 108;
 const AVATAR_RING = 3;
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const GALLERY_THUMB = (SCREEN_WIDTH - 40 - 8) / 2; // 2-col grid with 8px gap
+const FULL_PHOTO_WIDTH = SCREEN_WIDTH - 40;
 
 export default function ProfilePreviewScreen() {
   const { profile } = useAuthStore();
   const insets = useSafeAreaInsets();
 
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  // ── Full-screen image viewer ──────────────────────────────────────────────
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   const homeCountry = COUNTRIES.find(c => c.code === profile?.country_code);
   const photoUrls = profile?.photo_urls ?? [];
+
+  // Unified photo list: avatar + gallery
+  const allPhotos = useMemo(() => {
+    const photos: string[] = [];
+    if (profile?.avatar_url) photos.push(profile.avatar_url);
+    photos.push(...photoUrls);
+    return photos;
+  }, [profile?.avatar_url, photoUrls]);
+
+  const openViewer = useCallback((index: number) => {
+    if (allPhotos.length === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setViewerIndex(index);
+    setViewerVisible(true);
+  }, [allPhotos.length]);
+
+  // Photo index offset: avatar takes index 0 if it exists
+  const photoIndexOffset = profile?.avatar_url ? 1 : 0;
 
   const visitedData = (profile?.visited_countries ?? [])
     .map(code => COUNTRIES.find(c => c.code === code))
@@ -41,7 +60,6 @@ export default function ProfilePreviewScreen() {
   const hasTravelStyles = (profile?.travel_styles?.length ?? 0) > 0;
   const hasLanguages = (profile?.languages?.length ?? 0) > 0;
   const hasVisited = visitedData.length > 0;
-  const hasPhotos = photoUrls.length > 0;
 
   return (
     <View style={styles.flex}>
@@ -60,23 +78,25 @@ export default function ProfilePreviewScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: Platform.OS === 'android' ? 100 : insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Hero ── */}
+        {/* ── 1. Circle Avatar (tap → viewer) ── */}
         <View style={styles.hero}>
-          <View style={styles.avatarRing}>
-            {profile?.avatar_url ? (
-              <Image
-                source={{ uri: profile.avatar_url }}
-                style={styles.avatar}
-                contentFit="cover"
-              />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarInitial}>
-                  {profile?.display_name?.[0]?.toUpperCase() ?? '?'}
-                </Text>
-              </View>
-            )}
-          </View>
+          <TouchableOpacity onPress={() => openViewer(0)} activeOpacity={0.85}>
+            <View style={styles.avatarRing}>
+              {profile?.avatar_url ? (
+                <Image
+                  source={{ uri: profile.avatar_url }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarInitial}>
+                    {profile?.display_name?.[0]?.toUpperCase() ?? '?'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
 
           <Text style={styles.displayName}>{profile?.display_name ?? 'Traveler'}</Text>
 
@@ -87,15 +107,7 @@ export default function ProfilePreviewScreen() {
           ) : null}
         </View>
 
-        {/* ── Photo Gallery (Tactile swipe) ── */}
-        {hasPhotos ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Photos</Text>
-            <Gallery photos={photoUrls} />
-          </View>
-        ) : null}
-
-        {/* ── About ── */}
+        {/* ── 2. Bio ── */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>About</Text>
 
@@ -113,8 +125,22 @@ export default function ProfilePreviewScreen() {
           ) : null}
         </View>
 
-        {/* ── Persona Tags ── */}
-        {hasPersonaTags ? (
+        {/* ── 3. First Full Photo ── */}
+        {photoUrls.length > 0 && (
+          <TouchableOpacity
+            onPress={() => openViewer(photoIndexOffset)}
+            activeOpacity={0.85}
+          >
+            <Image
+              source={{ uri: photoUrls[0] }}
+              style={styles.fullPhoto}
+              contentFit="cover"
+            />
+          </TouchableOpacity>
+        )}
+
+        {/* ── 4. Personal Info (Persona + Travel Style) ── */}
+        {hasPersonaTags && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Persona</Text>
             <View style={styles.tagRow}>
@@ -125,10 +151,9 @@ export default function ProfilePreviewScreen() {
               ))}
             </View>
           </View>
-        ) : null}
+        )}
 
-        {/* ── Travel Style ── */}
-        {hasTravelStyles ? (
+        {hasTravelStyles && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Travel Style</Text>
             <View style={styles.tagRow}>
@@ -139,10 +164,24 @@ export default function ProfilePreviewScreen() {
               ))}
             </View>
           </View>
-        ) : null}
+        )}
 
-        {/* ── Languages ── */}
-        {hasLanguages ? (
+        {/* ── 5. Second Photo (interspersed) ── */}
+        {photoUrls.length > 1 && (
+          <TouchableOpacity
+            onPress={() => openViewer(photoIndexOffset + 1)}
+            activeOpacity={0.85}
+          >
+            <Image
+              source={{ uri: photoUrls[1] }}
+              style={styles.fullPhoto}
+              contentFit="cover"
+            />
+          </TouchableOpacity>
+        )}
+
+        {/* ── 6. Languages ── */}
+        {hasLanguages && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Languages</Text>
             <View style={styles.tagRow}>
@@ -153,10 +192,10 @@ export default function ProfilePreviewScreen() {
               ))}
             </View>
           </View>
-        ) : null}
+        )}
 
-        {/* ── Countries Visited ── */}
-        {hasVisited ? (
+        {/* ── 7. Countries Visited ── */}
+        {hasVisited && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Countries Visited</Text>
             <Text style={styles.visitedCount}>{visitedData.length} {visitedData.length === 1 ? 'country' : 'countries'}</Text>
@@ -169,10 +208,29 @@ export default function ProfilePreviewScreen() {
               ))}
             </View>
           </View>
-        ) : null}
+        )}
+
+        {/* ── 8. Remaining Photos ── */}
+        {photoUrls.length > 2 && (
+          <View style={styles.remainingPhotos}>
+            {photoUrls.slice(2).map((uri, i) => (
+              <TouchableOpacity
+                key={`${uri}-${i}`}
+                onPress={() => openViewer(photoIndexOffset + 2 + i)}
+                activeOpacity={0.85}
+              >
+                <Image
+                  source={{ uri }}
+                  style={styles.fullPhoto}
+                  contentFit="cover"
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* ── Empty state ── */}
-        {!profile?.bio && !hasPersonaTags && !hasTravelStyles && !hasLanguages && !hasVisited && !hasPhotos ? (
+        {!profile?.bio && !hasPersonaTags && !hasTravelStyles && !hasLanguages && !hasVisited && photoUrls.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyCardText}>
               Pretty blank so far.{'\n'}Hit Edit Profile to fill this in.
@@ -181,35 +239,13 @@ export default function ProfilePreviewScreen() {
         ) : null}
       </ScrollView>
 
-      {/* ── Full-Screen Photo Preview Modal ── */}
-      <Modal
-        visible={previewUri !== null}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setPreviewUri(null)}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={() => setPreviewUri(null)}>
-          <View style={[styles.modalCloseRow, { paddingTop: insets.top + 10 }]}>
-            <TouchableOpacity
-              style={styles.modalCloseBtn}
-              onPress={() => setPreviewUri(null)}
-              activeOpacity={0.7}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <X size={22} color={Colors.white} strokeWidth={2.5} />
-            </TouchableOpacity>
-          </View>
-
-          {previewUri && (
-            <Image
-              source={{ uri: previewUri }}
-              style={styles.modalImage}
-              contentFit="contain"
-            />
-          )}
-        </Pressable>
-      </Modal>
+      {/* ── Full-Screen Image Viewer ── */}
+      <ImageViewer
+        images={allPhotos}
+        initialIndex={viewerIndex}
+        visible={viewerVisible}
+        onClose={() => setViewerVisible(false)}
+      />
     </View>
   );
 }
@@ -308,17 +344,15 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
-  // ── Photo Gallery ─────────────────────────────────────────────
-  photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
+  // ── Full-width photo ────────────────────────────────────────
+  fullPhoto: {
+    width: FULL_PHOTO_WIDTH,
+    height: FULL_PHOTO_WIDTH * 0.75,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surface,
   },
-  galleryThumb: {
-    width: GALLERY_THUMB,
-    height: GALLERY_THUMB,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.surfaceElevated,
+  remainingPhotos: {
+    gap: 16,
   },
 
   // ── Cards ────────────────────────────────────────────────────
@@ -446,31 +480,5 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     textAlign: 'center',
     lineHeight: 22,
-  },
-
-  // ── Full-screen Preview Modal ────────────────────────────────
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalCloseRow: {
-    position: 'absolute',
-    top: 0,
-    right: 16,
-    zIndex: 10,
-  },
-  modalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalImage: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_WIDTH,
   },
 });

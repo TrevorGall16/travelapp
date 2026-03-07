@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { Animated, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapPin, Compass, Users } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
@@ -11,8 +11,11 @@ import { supabase } from '../../lib/supabase';
 import { forceGlobalSignOut } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { useFocusEffect } from 'expo-router';
+import ImageViewer from '../../components/profile/ImageViewer';
 
 const AVATAR_SIZE = 110;
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const PHOTO_WIDTH = SCREEN_WIDTH - 40; // 20px padding each side
 
 export default function ProfileScreen() {
   const { profile, user } = useAuthStore();
@@ -21,6 +24,25 @@ export default function ProfileScreen() {
   const country = COUNTRIES.find(c => c.code === profile?.country_code);
 
   const [connections, setConnections] = useState(0);
+
+  // ── Full-screen image viewer ──────────────────────────────────────────────
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+
+  // Unified photo list: avatar first, then gallery photos
+  const allPhotos = useMemo(() => {
+    const photos: string[] = [];
+    if (profile?.avatar_url) photos.push(profile.avatar_url);
+    if (profile?.photo_urls?.length) photos.push(...profile.photo_urls);
+    return photos;
+  }, [profile?.avatar_url, profile?.photo_urls]);
+
+  const openViewer = useCallback((index: number) => {
+    if (allPhotos.length === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setViewerIndex(index);
+    setViewerVisible(true);
+  }, [allPhotos.length]);
 
   // ── Fade-in entrance animation ──────────────────────────────────────────
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -69,19 +91,22 @@ export default function ProfileScreen() {
 
   const handleLogout = forceGlobalSignOut;
 
+  // Gallery photos (excluding avatar — shown separately)
+  const galleryPhotos = profile?.photo_urls ?? [];
+
   return (
     <Animated.View style={[styles.scroll, { opacity: fadeAnim }]}>
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 48 },
+        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 90 },
       ]}
       showsVerticalScrollIndicator={false}
     >
       {/* ── Hero ── */}
       <View style={styles.hero}>
-        <TouchableOpacity onPress={() => router.push('/profile/preview')} activeOpacity={0.85}>
+        <TouchableOpacity onPress={() => openViewer(0)} activeOpacity={0.85}>
           <View style={styles.avatarOuter}>
             <View style={styles.avatarRing}>
               {profile?.avatar_url ? (
@@ -111,22 +136,6 @@ export default function ProfileScreen() {
         ) : null}
       </View>
 
-      {/* ── Stats Row — Premium ── */}
-      <View style={styles.statsRow}>
-        {STATS.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <View key={stat.label} style={styles.statCard}>
-              <View style={[styles.statIconCircle, { backgroundColor: stat.color + '18' }]}>
-                <Icon size={18} color={stat.color} strokeWidth={2.5} />
-              </View>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          );
-        })}
-      </View>
-
       {/* ── About ── */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>About</Text>
@@ -145,6 +154,41 @@ export default function ProfileScreen() {
             <Text style={styles.igHandle}>@{profile.instagram_handle}</Text>
           </View>
         ) : null}
+      </View>
+
+      {/* ── Gallery Photos ── */}
+      {galleryPhotos.length > 0 && (
+        <View style={styles.photoRow}>
+          {galleryPhotos.map((uri, i) => (
+            <TouchableOpacity
+              key={`${uri}-${i}`}
+              onPress={() => openViewer(profile?.avatar_url ? i + 1 : i)}
+              activeOpacity={0.85}
+            >
+              <Image
+                source={{ uri }}
+                style={styles.galleryPhoto}
+                contentFit="cover"
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* ── Stats Row — Premium ── */}
+      <View style={styles.statsRow}>
+        {STATS.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <View key={stat.label} style={styles.statCard}>
+              <View style={[styles.statIconCircle, { backgroundColor: stat.color + '18' }]}>
+                <Icon size={18} color={stat.color} strokeWidth={2.5} />
+              </View>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          );
+        })}
       </View>
 
       {/* ── Actions ── */}
@@ -183,6 +227,14 @@ export default function ProfileScreen() {
         <Text style={styles.devResetText}>Developer Reset (Clear All Cache)</Text>
       </TouchableOpacity>
     </ScrollView>
+
+    {/* ── Full-Screen Image Viewer ── */}
+    <ImageViewer
+      images={allPhotos}
+      initialIndex={viewerIndex}
+      visible={viewerVisible}
+      onClose={() => setViewerVisible(false)}
+    />
     </Animated.View>
   );
 }
@@ -261,6 +313,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     fontWeight: '600',
+  },
+
+  // ── Gallery Photos ────────────────────────────────────────
+  photoRow: {
+    gap: Spacing.sm,
+  },
+  galleryPhoto: {
+    width: PHOTO_WIDTH,
+    height: PHOTO_WIDTH * 0.65,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surface,
   },
 
   // ── Stats — Premium individual cards ───────────────────────

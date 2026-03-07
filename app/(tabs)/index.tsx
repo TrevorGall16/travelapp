@@ -10,7 +10,6 @@ import {
   Animated as RNAnimated,
   Linking,
   Modal,
-  Platform,
   Pressable,
   Text,
   View,
@@ -671,25 +670,27 @@ const handleMapReady = useCallback(() => {
 
       {/* Map container — transparent bg so nothing paints over tiles */}
       <View style={styles.mapContainer}>
+{/* @ts-ignore — Android-only prop suppression */}
 <MapView
-  key={mapKey}
-  ref={mapRef}
-  style={styles.map}
-  provider={PROVIDER_GOOGLE}
-  googleRenderer="LEGACY"
-  mapType="standard"
-  showsUserLocation={false}
-  initialRegion={
-    region ?? {
-      latitude: coordinates?.latitude ?? 48.8566,
-      longitude: coordinates?.longitude ?? 2.3522,
-      latitudeDelta: 0.09,
-      longitudeDelta: 0.09,
-    }
-  }
-  onMapReady={handleMapReady}
-  onRegionChangeComplete={handleRegionChangeComplete}
-  {...(Platform.OS === 'android' ? { showsMapToolbar: false } : {})}
+          key={mapKey}
+          ref={mapRef}
+          style={styles.map}
+          provider={PROVIDER_GOOGLE}
+          googleRenderer="LEGACY"
+          mapType="standard"
+          showsUserLocation={false}
+          showsMyLocationButton={false}
+          toolbarEnabled={false}
+          initialRegion={
+            region ?? {
+              latitude: coordinates?.latitude ?? 48.8566,
+              longitude: coordinates?.longitude ?? 2.3522,
+              latitudeDelta: 0.09,
+              longitudeDelta: 0.09,
+            }
+          }
+          onMapReady={handleMapReady}
+          onRegionChangeComplete={handleRegionChangeComplete}
         >
           {tilesLoaded && renderedMarkers}
 
@@ -855,31 +856,6 @@ const handleMapReady = useCallback(() => {
           })}
         </View>
       </Modal>
-      {/* ── TACTICAL DEBUG OVERLAY ── */}
-      <View style={{ 
-        position: 'absolute', 
-        top: insets.top + 60, 
-        left: 20, 
-        backgroundColor: 'rgba(11, 17, 32, 0.9)', 
-        padding: 12, 
-        borderRadius: 12,
-        borderWidth: 1, 
-        borderColor: '#3B82F6',
-        zIndex: 9999 
-      }}>
-        <Text style={{ color: '#3B82F6', fontWeight: 'bold', fontSize: 12, marginBottom: 4 }}>
-          MAP DEBUG
-        </Text>
-        <Text style={{ color: 'white', fontSize: 10 }}>
-          API Key: {process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ? '✅ Loaded' : '❌ MISSING'}
-        </Text>
-        <Text style={{ color: 'white', fontSize: 10 }}>
-          Coords: {coordinates ? `${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}` : 'Searching...'}
-        </Text>
-        <Text style={{ color: 'white', fontSize: 10 }}>
-          Tiles: {tilesLoaded ? '✅ Ready' : '⏳ Loading'}
-        </Text>
-      </View>
     </View>
   );
 }

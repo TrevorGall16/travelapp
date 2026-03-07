@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   RefreshControl,
@@ -9,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -51,9 +53,11 @@ function countdownInfo(expiresAt: string): { label: string; color: string } {
 function EventRowItem({
   item,
   currentUserId,
+  onLongPress,
 }: {
   item: EventRow;
   currentUserId: string;
+  onLongPress: (item: EventRow, isHost: boolean) => void;
 }) {
   const router = useRouter();
   const countdown = countdownInfo(item.expires_at);
@@ -64,6 +68,11 @@ function EventRowItem({
     <Pressable
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       onPress={() => router.push(`/event/${item.id}`)}
+      onLongPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        onLongPress(item, isHost);
+      }}
+      delayLongPress={400}
       accessibilityRole="button"
       accessibilityLabel={`Open chat for ${item.title}`}
     >
@@ -223,6 +232,82 @@ export default function MyEventsScreen() {
     fetchMyEvents();
   }, [fetchMyEvents]);
 
+  // ── Long-press context menu ──────────────────────────────────────────────
+  const handleLongPress = useCallback(
+    (item: EventRow, isHost: boolean) => {
+      const buttons: Array<{ text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }> = [];
+
+      if (isHost) {
+        buttons.push({
+          text: 'Delete Event',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) { Alert.alert('Session Expired'); return; }
+              const res = await fetch(
+                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-event`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+                  },
+                  body: JSON.stringify({ event_id: item.id }),
+                },
+              );
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Delete failed.');
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              fetchMyEvents();
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Could not delete event.');
+            }
+          },
+        });
+      } else {
+        buttons.push({
+          text: 'Leave Event',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) { Alert.alert('Session Expired'); return; }
+              const res = await fetch(
+                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+                  },
+                  body: JSON.stringify({ event_id: item.id }),
+                },
+              );
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Leave failed.');
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              fetchMyEvents();
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Could not leave event.');
+            }
+          },
+        });
+      }
+
+      buttons.push({ text: 'Cancel', style: 'cancel' });
+
+      Alert.alert(
+        item.title,
+        isHost ? 'You are the host of this event.' : 'You are a participant in this event.',
+        buttons,
+      );
+    },
+    [fetchMyEvents],
+  );
+
   // ── Section data ───────────────────────────────────────────────────────
 
   const sections = useMemo(() => {
@@ -282,7 +367,7 @@ export default function MyEventsScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <EventRowItem item={item} currentUserId={user?.id ?? ''} />
+          <EventRowItem item={item} currentUserId={user?.id ?? ''} onLongPress={handleLongPress} />
         )}
         renderSectionHeader={({ section: { title } }) => (
           <View style={styles.sectionHeader}>
