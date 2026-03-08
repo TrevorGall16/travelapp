@@ -8,6 +8,7 @@ import React, {
 import {
   ActivityIndicator,
   Animated as RNAnimated,
+  FlatList,
   Linking,
   Modal,
   Pressable,
@@ -24,7 +25,7 @@ import MapView, {
 import * as Location from 'expo-location';
 import Supercluster from 'supercluster';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Bell, Check, LocateFixed, MapPin, Plus, SlidersHorizontal } from 'lucide-react-native';
+import { Bell, Check, List, LocateFixed, MapPin, Plus, SlidersHorizontal } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
@@ -43,6 +44,7 @@ import {
 } from '../../lib/mapGeo';
 import { styles } from '../../styles/mapScreenStyles';
 import { CATEGORY_EMOJI } from '../../constants/categories';
+import { TAB_CONTENT_HEIGHT } from './_layout';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -78,10 +80,9 @@ export default function MapScreen() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
-  // Stacked-pins modal: shown when a cluster's leaves all share the same coordinate
-  const [stackedEventIds, setStackedEventIds] = useState<string[]>([]);
   // Flips true after onMapReady + requestAnimationFrame, proving tiles can render.
   const [tilesLoaded, setTilesLoaded] = useState(false);
+  const [isListVisible, setIsListVisible] = useState(false);
 
   // ── Sonar pulse animation ──────────────────────────────────────────────────
   const pulseAnim = useRef(new RNAnimated.Value(0)).current;
@@ -113,12 +114,14 @@ export default function MapScreen() {
   const locationWatchRef = useRef<Location.LocationSubscription | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
-  // Supercluster instance — recreated when mapKey changes to force a full re-index.
-  // maxZoom: 16 means clusters dissolve by zoom 17. At zoom >= 18 we skip
-  // supercluster entirely and render individual pins (see recomputeClusters).
-  const SC_MAX_ZOOM = 16;
+  // Supercluster — "brittle" config: clusters shatter early, pins stay apart.
+  // maxZoom: 13  — clusters dissolve by zoom 13; zoom 14+ always shows pins.
+  // radius: 20   — weak merge pull; nearby events resist clustering.
+  // extent: 1024 — maximum tile precision for sharper split boundaries.
+  const SC_MAX_ZOOM = 13;
+  const SC_OPTS = { radius: 20, maxZoom: SC_MAX_ZOOM, extent: 1024 };
   const sc = useRef(
-    new Supercluster<PinProperties>({ radius: 6000, maxZoom: SC_MAX_ZOOM }),
+    new Supercluster<PinProperties>(SC_OPTS),
   );
   const lastMapKeyRef = useRef(mapKey);
 
@@ -179,7 +182,7 @@ export default function MapScreen() {
 
       // Rebuild the Supercluster instance when mapKey changes to force a clean KD-tree
       if (currentMapKey !== lastMapKeyRef.current) {
-        sc.current = new Supercluster<PinProperties>({ radius: 6000, maxZoom: SC_MAX_ZOOM });
+        sc.current = new Supercluster<PinProperties>(SC_OPTS);
         lastMapKeyRef.current = currentMapKey;
       }
 
@@ -191,10 +194,10 @@ export default function MapScreen() {
         latitude + latitudeDelta / 2,
       ];
 
-      // At zoom >= 18, disable clustering entirely — show individual pins.
-      // The spiderfier jitter in eventsToGeoFeatures() already offsets
-      // co-located pins by ~2 m, so they'll appear as distinct markers.
-      if (zoom >= 18) {
+      // At zoom >= 14 (past SC_MAX_ZOOM=13), bypass supercluster entirely
+      // and render raw spiderfied features.  Co-located pins are offset by
+      // ~110 m (SPIDER_RADIUS=0.001), guaranteeing wide visual separation.
+      if (zoom >= 14) {
         const features = eventsToGeoFeatures(evts);
         // Filter to bbox
         const visible = features.filter((f) => {
@@ -470,38 +473,28 @@ export default function MapScreen() {
 
   const handleClusterPress = useCallback(
     (clusterId: number, coordinate: { latitude: number; longitude: number }) => {
-      if (!mapRef.current) return;
+      if (!mapRef.current || !region) return;
       const leaves = sc.current.getLeaves(clusterId, Infinity);
       if (leaves.length === 0) return;
 
-      const lats = leaves.map((f) => f.geometry.coordinates[1]);
-      const lons = leaves.map((f) => f.geometry.coordinates[0]);
+      // Natural zoom: step in by at most +2 zoom levels for a fluid transition
+      // instead of an aggressive jump to the cluster's full expansion zoom.
+      const currentZoom = Math.max(0, Math.min(20, Math.round(Math.log2(360 / region.longitudeDelta))));
+      const expansionZoom = sc.current.getClusterExpansionZoom(clusterId);
+      const targetZoom = Math.min(expansionZoom, currentZoom + 2);
+      const targetDelta = 360 / Math.pow(2, targetZoom);
 
-      // Stacked-pins detection: all leaves within ~11 m of each other (0.0001°).
-      // Zooming in won't separate them — show a selection modal instead.
-      const latSpread = Math.max(...lats) - Math.min(...lats);
-      const lonSpread = Math.max(...lons) - Math.min(...lons);
-      if (latSpread < 0.0001 && lonSpread < 0.0001) {
-        const ids = leaves.map(
-          (f) => (f.properties as { eventId: string }).eventId,
-        );
-        setStackedEventIds(ids);
-        return;
-      }
-
-      // Normal cluster: zoom to fit the bounding box of all leaves
-      mapRef.current.fitToCoordinates(
-        [
-          { latitude: Math.min(...lats), longitude: Math.min(...lons) },
-          { latitude: Math.max(...lats), longitude: Math.max(...lons) },
-        ],
+      mapRef.current.animateToRegion(
         {
-          edgePadding: { top: 80, right: 60, bottom: 80, left: 60 },
-          animated: true,
+          latitude: coordinate.latitude,
+          longitude: coordinate.longitude,
+          latitudeDelta: targetDelta,
+          longitudeDelta: targetDelta,
         },
+        400,
       );
     },
-    [],
+    [region],
   );
 
   const handlePinPress = useCallback(
@@ -559,6 +552,7 @@ const handleMapReady = useCallback(() => {
             <Marker
               key={`cluster-${clusterId}`}
               coordinate={coordinate}
+              zIndex={100}
               onPress={() =>
                 handleClusterPress(clusterId as number, coordinate)
               }
@@ -578,6 +572,7 @@ const handleMapReady = useCallback(() => {
           <Marker
             key={`event-${eventId}`}
             coordinate={coordinate}
+            zIndex={1}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               handlePinPress(eventId);
@@ -668,6 +663,15 @@ const handleMapReady = useCallback(() => {
             }}
           >
             <Bell size={22} color={Colors.textPrimary} strokeWidth={2} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIsListVisible(true);
+            }}
+          >
+            <List size={22} color={Colors.textPrimary} strokeWidth={2} />
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
@@ -788,43 +792,64 @@ const handleMapReady = useCallback(() => {
         </>
       )}
 
-      {/* ── Stacked-pins Modal ── */}
-      {/* Shown when multiple events share the same map coordinate.
-          Zooming in won't separate them, so we list them for direct selection. */}
+      {/* ── List View Modal ── */}
       <Modal
         animationType="slide"
         transparent
-        visible={stackedEventIds.length > 0}
-        onRequestClose={() => setStackedEventIds([])}
+        visible={isListVisible}
+        onRequestClose={() => setIsListVisible(false)}
       >
         <Pressable
           style={styles.modalOverlay}
-          onPress={() => setStackedEventIds([])}
+          onPress={() => setIsListVisible(false)}
         />
-        <View style={[styles.filterSheet, { paddingBottom: insets.bottom + 20 }]}>
+        <View style={[styles.filterSheet, { paddingBottom: insets.bottom + TAB_CONTENT_HEIGHT, maxHeight: '75%' }]}>
           <View style={styles.filterHandle} />
-          <Text style={styles.filterTitle}>
-            {stackedEventIds.length} events here
-          </Text>
-          {stackedEventIds.map((id) => {
-            const ev = visibleEvents.find((e) => e.id === id);
-            if (!ev) return null;
-            return (
-              <Pressable
-                key={id}
-                style={({ pressed }) => [styles.filterRow, pressed && { opacity: 0.7 }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setStackedEventIds([]);
-                  setSelectedEvent(ev);
-                }}
-              >
-                <Text style={styles.filterRowLabel}>
-                  {CATEGORY_EMOJI[ev.category] ?? '📍'} {ev.title}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <Text style={styles.filterTitle}>Nearby Events</Text>
+          <FlatList
+            data={
+              coordinates
+                ? [...visibleEvents].sort(
+                    (a, b) =>
+                      haversineMeters(coordinates.latitude, coordinates.longitude, a.latitude, a.longitude) -
+                      haversineMeters(coordinates.latitude, coordinates.longitude, b.latitude, b.longitude),
+                  )
+                : visibleEvents
+            }
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => {
+              const dist = coordinates
+                ? haversineMeters(coordinates.latitude, coordinates.longitude, item.latitude, item.longitude)
+                : null;
+              const distLabel =
+                dist !== null
+                  ? dist < 1000
+                    ? `${Math.round(dist)} m`
+                    : `${(dist / 1000).toFixed(1)} km`
+                  : '';
+              return (
+                <Pressable
+                  style={({ pressed }) => [styles.listRow, pressed && { opacity: 0.7 }]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setIsListVisible(false);
+                    setSelectedEvent(item);
+                  }}
+                >
+                  <Text style={styles.listRowEmoji}>{CATEGORY_EMOJI[item.category] ?? '📍'}</Text>
+                  <View style={styles.listRowContent}>
+                    <Text style={styles.listRowTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.listRowMeta}>
+                      {distLabel}{distLabel ? ' · ' : ''}{item.participant_count} joined
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            }}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No events nearby.</Text>
+            }
+          />
         </View>
       </Modal>
 

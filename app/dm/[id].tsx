@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   Text,
@@ -41,14 +40,19 @@ export default function DMChatScreen() {
 
   // ── Blocked users — hide their messages ──────────────────────────────────
   const blockedUserIds = useBlockedUsers();
+  const blockedRef = useRef(blockedUserIds);
+  blockedRef.current = blockedUserIds;
+
+  // Stable component identity — reads blockedUserIds via ref to prevent
+  // Channel from unmounting/remounting the message tree on every change.
   const BlockFilteredMessage = useCallback(
     (props: any) => {
-      if (blockedUserIds.size > 0 && blockedUserIds.has(props.message?.user?.id)) {
+      if (blockedRef.current.size > 0 && blockedRef.current.has(props.message?.user?.id)) {
         return null;
       }
       return <MessageSimple {...props} />;
     },
-    [blockedUserIds],
+    [], // stable — reads via ref
   );
 
   useEffect(() => {
@@ -141,17 +145,14 @@ export default function DMChatScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Chat */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'android' ? 'height' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'android' ? insets.top + 56 : 0}
-      >
+      {/* Chat — Android: adjustResize handles keyboard, KCV disabled.
+               iOS: KCV handles keyboard; offset = header height. */}
         <Chat client={streamClient} style={STREAM_THEME}>
           <Channel
             channel={channel}
             disableKeyboardCompatibleView={Platform.OS === 'android'}
-            Message={BlockFilteredMessage}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+            MessageSimple={BlockFilteredMessage}
             InputButtons={ChatInputButtons}
             hasImagePicker
             hasCameraPicker
@@ -159,12 +160,9 @@ export default function DMChatScreen() {
             hasCommands={false}
           >
             <MessageList />
-            <View style={{ paddingBottom: insets.bottom }}>
-              <MessageInput />
-            </View>
+            <MessageInput />
           </Channel>
         </Chat>
-      </KeyboardAvoidingView>
     </View>
   );
 }

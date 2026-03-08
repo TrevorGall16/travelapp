@@ -639,8 +639,8 @@ export default function EventChatScreen() {
 // ── Main render ────────────────────────────────────────────────────────────
 return (
     // OverlayProvider lives in app/_layout.tsx — do NOT nest it here.
-    // Single wrapper; Stream's KeyboardCompatibleView (enabled via
-    // disableKeyboardCompatibleView={false}) handles all keyboard avoidance.
+    // iOS: Stream's KCV handles keyboard avoidance inside Channel.
+    // Android: KCV is disabled; adjustResize (app.config.js) handles it.
     <View
       style={{
         flex: 1,
@@ -731,13 +731,13 @@ return (
         )}
 
         {/* ── Stream Chat Container ── */}
-        {/* KCV is enabled on both platforms. On Android, adjustResize already
-            handles keyboard so KCV calculates 0 offset (safe no-op).
-            additionalKeyboardAvoidingViewProps ensures KCV's internal Views
-            use flex:1 so MessageList + MessageInput fill remaining space. */}
+        {/* Android: adjustResize (app.config.js) handles keyboard natively.
+            KCV is disabled to prevent double-avoidance (gap after dismiss).
+            iOS: KCV handles keyboard; offset = header height above Channel. */}
           <Chat client={streamClient} style={STREAM_THEME}>
             <Channel
               channel={streamChannel}
+              disableKeyboardCompatibleView={Platform.OS === 'android'}
               keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
               enableMessageReactions
               enableMessageReplies
@@ -748,10 +748,6 @@ return (
               hasCameraPicker
               hasFilePicker={false}
               hasCommands={false}
-              additionalKeyboardAvoidingViewProps={{
-                style: { flex: 1 },
-                contentContainerStyle: { flex: 1 },
-              }}
               messageActions={({ message, dismissOverlay }) => {
                 const actions = [
                   {
@@ -774,11 +770,10 @@ return (
                 return actions;
               }}
             >
-              <MessageList
-                showUserAvatar
-                DateHeader
-                enableMessageTimestamp
-              />
+              {/* SDK defaults: own messages right, others left (CHAT_RULE_01).
+                  Avatars show on last message per group. Timestamps via MessageFooter.
+                  Date separators rendered automatically. No extra props needed. */}
+              <MessageList />
 
               {(isParticipant || isHost) && (
                 <MessageInput />

@@ -110,42 +110,80 @@ export type ClusterOutput =
 export function eventsToGeoFeatures(
   events: Event[],
 ): Supercluster.PointFeature<PinProperties>[] {
-  // Spiderfier: offset co-located pins in a circle (~3 m radius per ring)
-  // so they fan out visually at zoom >= 18.
-  const SPIDER_RADIUS = 0.00003; // ~3 m at equator
-  const seen = new Map<string, number>(); // "lat,lon" → count
+  // ── Radical Splatter Spiderfier ────────────────────────────────────────────
+  //
+  // SPIDER_RADIUS = 0.001° ≈ 110 m at equator.
+  // For 2 co-located events: fanned at 0° and 180° → 220 m apart.
+  // This guarantees unmistakably separate pins on screen and makes
+  // Android's marker disambiguation popup physically impossible.
+  //
+  // Grouping uses each event's raw coordinates (no grid snapping).
+  // Events at identical coords get fanned out; events at different
+  // coords pass through unmodified.
 
-  return events.map((e) => {
+  const SPIDER_RADIUS = 0.001; // ~110 m at equator
+
+  // ── Pass 1: group by exact coordinate ──────────────────────────────────────
+  const groups = new Map<string, number[]>();
+  events.forEach((e, i) => {
     const key = `${e.latitude},${e.longitude}`;
-    const count = seen.get(key) ?? 0;
-    seen.set(key, count + 1);
+    const arr = groups.get(key);
+    if (arr) arr.push(i);
+    else groups.set(key, [i]);
+  });
 
-    // Place duplicates in a circle: evenly spaced around the original point.
-    // First pin stays at origin; subsequent pins fan out at equal angles.
-    let jitterLat = 0;
-    let jitterLon = 0;
-    if (count > 0) {
-      const angle = (2 * Math.PI * count) / Math.max(count + 1, 6);
-      const ring = Math.ceil(count / 6); // expand to outer ring after 6 pins
-      jitterLat = ring * SPIDER_RADIUS * Math.cos(angle);
-      jitterLon = ring * SPIDER_RADIUS * Math.sin(angle);
+  // ── Pass 2: build features — fan out co-located groups ─────────────────────
+  const result: Supercluster.PointFeature<PinProperties>[] = new Array(events.length);
+
+  for (const indices of groups.values()) {
+    const n = indices.length;
+
+    if (n === 1) {
+      const e = events[indices[0]];
+      result[indices[0]] = {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [e.longitude, e.latitude] },
+        properties: {
+          eventId: e.id,
+          category: e.category,
+          title: e.title,
+          participantCount: e.participant_count,
+          expiresAt: e.expires_at,
+          hostVerified: false,
+          hostAvatarUrl: null,
+        },
+      };
+      continue;
     }
 
-    return {
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [e.longitude + jitterLon, e.latitude + jitterLat],
-      },
-      properties: {
-        eventId: e.id,
-        category: e.category,
-        title: e.title,
-        participantCount: e.participant_count,
-        expiresAt: e.expires_at,
-        hostVerified: false,
-        hostAvatarUrl: null,
-      },
-    };
-  });
+    // Fan ALL members outward from their shared coordinate.
+    // 2 pins → 0° and 180° (maximum separation = 2 × SPIDER_RADIUS ≈ 220 m).
+    // 3+ pins → evenly distributed around the circle.
+    const cLat = events[indices[0]].latitude;
+    const cLon = events[indices[0]].longitude;
+
+    indices.forEach((idx, pos) => {
+      const e = events[idx];
+      const angle = (2 * Math.PI * pos) / n;
+      const ring = Math.floor(pos / 6) + 1;
+      const lat = cLat + ring * SPIDER_RADIUS * Math.cos(angle);
+      const lon = cLon + ring * SPIDER_RADIUS * Math.sin(angle);
+
+      result[idx] = {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lon, lat] },
+        properties: {
+          eventId: e.id,
+          category: e.category,
+          title: e.title,
+          participantCount: e.participant_count,
+          expiresAt: e.expires_at,
+          hostVerified: false,
+          hostAvatarUrl: null,
+        },
+      };
+    });
+  }
+
+  return result;
 }

@@ -261,4 +261,32 @@ export const styles = StyleSheet.create({
     color: Colors.accent,
     fontWeight: '600',
   },
+
+  // ── List View rows ────────────────────────────────────────────────
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+    gap: Spacing.md,
+  },
+  listRowEmoji: {
+    fontSize: 24,
+    width: 36,
+    textAlign: 'center',
+  },
+  listRowContent: {
+    flex: 1,
+  },
+  listRowTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  listRowMeta: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
 });
