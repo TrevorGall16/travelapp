@@ -35,6 +35,7 @@ import { MeetupModal } from '../../components/chat/MeetupModal';
 import { DeleteConfirmModal } from '../../components/chat/DeleteConfirmModal';
 import { MembersModal } from '../../components/chat/MembersModal';
 import type { MemberEntry } from '../../components/chat/MembersModal';
+import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
 
 // ─── Sender Name Header ─────────────────────────────────────────────────────
 // Shows the sender's display name above their message in group chat.
@@ -730,20 +731,27 @@ return (
         )}
 
         {/* ── Stream Chat Container ── */}
-        {/* Android: softwareKeyboardLayoutMode="resize" in app.config.js handles
-            keyboard avoidance natively — no KAV needed. Stream's KCV is disabled
-            to prevent double-adjustment.
-            iOS: Stream's built-in KeyboardCompatibleView handles avoidance. */}
+        {/* KCV is enabled on both platforms. On Android, adjustResize already
+            handles keyboard so KCV calculates 0 offset (safe no-op).
+            additionalKeyboardAvoidingViewProps ensures KCV's internal Views
+            use flex:1 so MessageList + MessageInput fill remaining space. */}
           <Chat client={streamClient} style={STREAM_THEME}>
             <Channel
               channel={streamChannel}
-              disableKeyboardCompatibleView={Platform.OS === 'android'}
               keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
               enableMessageReactions
               enableMessageReplies
-              forceAlignMessages="left"
               MessageHeader={SenderNameHeader}
               MessageSimple={BlockFilteredMessageSimple}
+              InputButtons={ChatInputButtons}
+              hasImagePicker
+              hasCameraPicker
+              hasFilePicker={false}
+              hasCommands={false}
+              additionalKeyboardAvoidingViewProps={{
+                style: { flex: 1 },
+                contentContainerStyle: { flex: 1 },
+              }}
               messageActions={({ message, dismissOverlay }) => {
                 const actions = [
                   {
@@ -767,13 +775,13 @@ return (
               }}
             >
               <MessageList
-                noGroupByUser
+                showUserAvatar
+                DateHeader
+                enableMessageTimestamp
               />
 
               {(isParticipant || isHost) && (
-                <View style={{ paddingBottom: insets.bottom }}>
-                  <MessageInput />
-                </View>
+                <MessageInput />
               )}
             </Channel>
           </Chat>

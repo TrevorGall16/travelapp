@@ -110,8 +110,9 @@ export type ClusterOutput =
 export function eventsToGeoFeatures(
   events: Event[],
 ): Supercluster.PointFeature<PinProperties>[] {
-  // Jitter: offset co-located pins by ~2 m so they physically separate at zoom 18+
-  const JITTER = 0.00002;
+  // Spiderfier: offset co-located pins in a circle (~3 m radius per ring)
+  // so they fan out visually at zoom >= 18.
+  const SPIDER_RADIUS = 0.00003; // ~3 m at equator
   const seen = new Map<string, number>(); // "lat,lon" → count
 
   return events.map((e) => {
@@ -119,9 +120,16 @@ export function eventsToGeoFeatures(
     const count = seen.get(key) ?? 0;
     seen.set(key, count + 1);
 
-    // Offset duplicates in a spiral pattern (~2 m per step)
-    const jitterLat = count > 0 ? count * JITTER * Math.cos(count) : 0;
-    const jitterLon = count > 0 ? count * JITTER * Math.sin(count) : 0;
+    // Place duplicates in a circle: evenly spaced around the original point.
+    // First pin stays at origin; subsequent pins fan out at equal angles.
+    let jitterLat = 0;
+    let jitterLon = 0;
+    if (count > 0) {
+      const angle = (2 * Math.PI * count) / Math.max(count + 1, 6);
+      const ring = Math.ceil(count / 6); // expand to outer ring after 6 pins
+      jitterLat = ring * SPIDER_RADIUS * Math.cos(angle);
+      jitterLon = ring * SPIDER_RADIUS * Math.sin(angle);
+    }
 
     return {
       type: 'Feature',

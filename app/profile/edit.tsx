@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Plus, X } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
@@ -183,6 +184,7 @@ export default function EditProfileScreen() {
   };
 
   return (
+    <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -191,7 +193,7 @@ export default function EditProfileScreen() {
       <BlurView
         intensity={80}
         tint="systemMaterialDark"
-        style={[styles.headerBlur, { paddingTop: insets.top + 10 }]}
+        style={[styles.headerBlur, { paddingTop: 10 }]}
       >
         <View style={styles.headerInner}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
@@ -220,7 +222,7 @@ export default function EditProfileScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -407,6 +409,7 @@ export default function EditProfileScreen() {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

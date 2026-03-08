@@ -27,6 +27,7 @@ import { streamClient } from '../../lib/streamClient';
 import { useBlockedUsers } from '../../hooks/useBlockedUsers';
 import { Colors, STREAM_THEME } from '../../constants/theme';
 import { styles } from '../../styles/eventChatStyles';
+import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
 
 export default function DMChatScreen() {
   const { id: channelId } = useLocalSearchParams<{ id: string }>();
@@ -151,6 +152,11 @@ export default function DMChatScreen() {
             channel={channel}
             disableKeyboardCompatibleView={Platform.OS === 'android'}
             Message={BlockFilteredMessage}
+            InputButtons={ChatInputButtons}
+            hasImagePicker
+            hasCameraPicker
+            hasFilePicker={false}
+            hasCommands={false}
           >
             <MessageList />
             <View style={{ paddingBottom: insets.bottom }}>

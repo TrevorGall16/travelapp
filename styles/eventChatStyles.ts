@@ -18,6 +18,8 @@ export const bannerStyles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm + 2,
     gap: Spacing.sm + 2,
+    minHeight: 48,
+    height: 48,
   },
   pin: { fontSize: 18 },
   info: { flex: 1 },

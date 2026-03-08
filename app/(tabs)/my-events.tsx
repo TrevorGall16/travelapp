@@ -2,12 +2,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  LayoutAnimation,
   Platform,
   Pressable,
   RefreshControl,
   SectionList,
   StyleSheet,
   Text,
+  UIManager,
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -22,6 +24,11 @@ import type { EventCategory } from '../../types';
 import { CATEGORY_EMOJI } from '../../constants/categories';
 import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
 import { ActionModal, ConfirmModal } from '../../components/ActionModal';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -210,8 +217,9 @@ export default function MyEventsScreen() {
       }));
 
       if (!isMountedRef.current) return;
-      setActiveEvents(combined.filter((e) => e.status === 'active'));
-      setPastEvents(combined.filter((e) => e.status === 'expired').reverse());
+      const now = new Date();
+      setActiveEvents(combined.filter((e) => e.status === 'active' && new Date(e.expires_at) > now));
+      setPastEvents(combined.filter((e) => e.status === 'expired' || new Date(e.expires_at) <= now).reverse());
     } catch (err) {
       console.error('[MyEvents] fetch error:', err);
     } finally {
@@ -309,14 +317,22 @@ export default function MyEventsScreen() {
     }
   }, [selectedItem, fetchMyEvents]);
 
+  // ── Collapsible Past section ────────────────────────────────────────────
+  const [pastCollapsed, setPastCollapsed] = useState(true);
+
+  const togglePastSection = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setPastCollapsed(prev => !prev);
+  }, []);
+
   // ── Section data ───────────────────────────────────────────────────────
 
   const sections = useMemo(() => {
     const result: Array<{ title: string; data: EventRow[] }> = [];
     if (activeEvents.length > 0) result.push({ title: 'ACTIVE', data: activeEvents });
-    if (pastEvents.length > 0) result.push({ title: 'PAST', data: pastEvents });
+    if (pastEvents.length > 0) result.push({ title: 'PAST', data: pastCollapsed ? [] : pastEvents });
     return result;
-  }, [activeEvents, pastEvents]);
+  }, [activeEvents, pastEvents, pastCollapsed]);
 
   const isEmpty =
     !isLoading && activeEvents.length === 0 && pastEvents.length === 0;
@@ -371,9 +387,18 @@ export default function MyEventsScreen() {
           <EventRowItem item={item} currentUserId={user?.id ?? ''} onLongPress={handleLongPress} />
         )}
         renderSectionHeader={({ section: { title } }) => (
-          <View style={styles.sectionHeader}>
+          <Pressable
+            style={styles.sectionHeader}
+            onPress={title === 'PAST' ? togglePastSection : undefined}
+            disabled={title !== 'PAST'}
+          >
             <Text style={styles.sectionHeaderText}>{title}</Text>
-          </View>
+            {title === 'PAST' && (
+              <Text style={styles.sectionChevron}>
+                {pastCollapsed ? `${pastEvents.length} ›` : '‹'}
+              </Text>
+            )}
+          </Pressable>
         )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         stickySectionHeadersEnabled={false}
@@ -447,6 +472,9 @@ const styles = StyleSheet.create({
 
   // Section header
   sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.xl,
     paddingBottom: Spacing.sm,
@@ -456,6 +484,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textTertiary,
     letterSpacing: 1.2,
+  },
+  sectionChevron: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textTertiary,
   },
 
   // List

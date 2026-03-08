@@ -114,8 +114,11 @@ export default function MapScreen() {
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   // Supercluster instance — recreated when mapKey changes to force a full re-index.
+  // maxZoom: 16 means clusters dissolve by zoom 17. At zoom >= 18 we skip
+  // supercluster entirely and render individual pins (see recomputeClusters).
+  const SC_MAX_ZOOM = 16;
   const sc = useRef(
-    new Supercluster<PinProperties>({ radius: 6000, maxZoom: 20 }),
+    new Supercluster<PinProperties>({ radius: 6000, maxZoom: SC_MAX_ZOOM }),
   );
   const lastMapKeyRef = useRef(mapKey);
 
@@ -176,7 +179,7 @@ export default function MapScreen() {
 
       // Rebuild the Supercluster instance when mapKey changes to force a clean KD-tree
       if (currentMapKey !== lastMapKeyRef.current) {
-        sc.current = new Supercluster<PinProperties>({ radius: 6000, maxZoom: 20 });
+        sc.current = new Supercluster<PinProperties>({ radius: 6000, maxZoom: SC_MAX_ZOOM });
         lastMapKeyRef.current = currentMapKey;
       }
 
@@ -187,6 +190,20 @@ export default function MapScreen() {
         longitude + longitudeDelta / 2,
         latitude + latitudeDelta / 2,
       ];
+
+      // At zoom >= 18, disable clustering entirely — show individual pins.
+      // The spiderfier jitter in eventsToGeoFeatures() already offsets
+      // co-located pins by ~2 m, so they'll appear as distinct markers.
+      if (zoom >= 18) {
+        const features = eventsToGeoFeatures(evts);
+        // Filter to bbox
+        const visible = features.filter((f) => {
+          const [fLon, fLat] = f.geometry.coordinates;
+          return fLon >= bbox[0] && fLon <= bbox[2] && fLat >= bbox[1] && fLat <= bbox[3];
+        });
+        setClusters(visible as ClusterOutput[]);
+        return;
+      }
 
       sc.current.load(eventsToGeoFeatures(evts));
 

@@ -4,11 +4,13 @@ import { Map, CalendarCheck, MessageCircle, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/theme';
 
+/** Content-area height of the tab bar (excluding safe area). */
+export const TAB_CONTENT_HEIGHT = 56;
+
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
 
   // Consistent tab bar height: content area + safe area bottom
-  const TAB_CONTENT_HEIGHT = 56;
   const tabBarHeight = TAB_CONTENT_HEIGHT + (Platform.OS === 'ios' ? Math.max(insets.bottom, 16) : insets.bottom + 8);
   const tabBarPaddingBottom = Platform.OS === 'ios' ? Math.max(insets.bottom - 8, 8) : insets.bottom + 4;
 

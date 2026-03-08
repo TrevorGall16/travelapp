@@ -126,7 +126,8 @@ Deno.serve(async (req: Request) => {
       .from('events')
       .select('id', { count: 'exact', head: true })
       .eq('host_id', user.id)
-      .eq('status', 'active'),
+      .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString()),
   ]);
 
   if (profileResult.error) {
