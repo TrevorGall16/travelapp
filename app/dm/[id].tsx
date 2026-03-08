@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   Text,
   View,
@@ -150,7 +149,7 @@ export default function DMChatScreen() {
           <Channel
             channel={channel}
             disableKeyboardCompatibleView={false}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+            keyboardVerticalOffset={insets.top + 56}
             MessageSimple={BlockFilteredMessage}
             InputButtons={ChatInputButtons}
             hasImagePicker

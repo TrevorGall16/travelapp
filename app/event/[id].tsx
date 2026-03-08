@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
   Text,
   View,
@@ -36,6 +35,7 @@ import { DeleteConfirmModal } from '../../components/chat/DeleteConfirmModal';
 import { MembersModal } from '../../components/chat/MembersModal';
 import type { MemberEntry } from '../../components/chat/MembersModal';
 import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
+import { TAB_CONTENT_HEIGHT } from '../(tabs)/_layout';
 
 // ─── Sender Name Header ─────────────────────────────────────────────────────
 // Shows the sender's display name above their message in group chat.
@@ -105,7 +105,7 @@ export default function EventChatScreen() {
   const isMockEvent = eventId === MOCK_EVENT_ID;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const bottomInputBaseline = insets.bottom;
+  const bottomNavPadding = insets.bottom + TAB_CONTENT_HEIGHT;
 
   const { user, profile, streamToken } = useAuthStore();
 
@@ -647,7 +647,7 @@ return (
         flex: 1,
         backgroundColor: Colors.background,
         paddingTop: insets.top,
-        paddingBottom: bottomInputBaseline,
+        paddingBottom: bottomNavPadding,
       }}
     >
 
@@ -740,7 +740,7 @@ return (
               <Channel
                 channel={streamChannel}
                 disableKeyboardCompatibleView={false}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+                keyboardVerticalOffset={insets.top + 56}
                 enableMessageReactions
                 enableMessageReplies
                 MessageHeader={SenderNameHeader}
