@@ -168,12 +168,7 @@ export const STREAM_THEME = {
   },
 
   dateHeader: {
-    text: { color: '#E0E0E0' },
-  },
-  messageList: {
-    dateHeader: {
-      text: { color: '#E0E0E0' },
-    },
+    text: { color: Colors.textTertiary },
   },
   messageInput: {
     container: {

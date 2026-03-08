@@ -167,6 +167,7 @@ export const styles = StyleSheet.create({
 
   chatContainer: {
     flex: 1,
+    minHeight: 0,
   },
 
   // ── Expired banner ──────────────────────────────────────────────────────

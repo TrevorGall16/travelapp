@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   Pressable,
   Text,
   View,
@@ -36,6 +35,7 @@ import { DeleteConfirmModal } from '../../components/chat/DeleteConfirmModal';
 import { MembersModal } from '../../components/chat/MembersModal';
 import type { MemberEntry } from '../../components/chat/MembersModal';
 import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
+import { TAB_CONTENT_HEIGHT } from '../(tabs)/_layout';
 
 // ─── Sender Name Header ─────────────────────────────────────────────────────
 // Shows the sender's display name above their message in group chat.
@@ -105,6 +105,7 @@ export default function EventChatScreen() {
   const isMockEvent = eventId === MOCK_EVENT_ID;
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bottomNavPadding = insets.bottom + TAB_CONTENT_HEIGHT;
 
   const { user, profile, streamToken } = useAuthStore();
 
@@ -654,13 +655,14 @@ export default function EventChatScreen() {
 // ── Main render ────────────────────────────────────────────────────────────
 return (
     // OverlayProvider lives in app/_layout.tsx — do NOT nest it here.
-    // iOS uses Stream KCV; Android uses softwareKeyboardLayoutMode "pan" + native positioning.
+    // Stream's KCV handles keyboard avoidance on both iOS + Android.
+    // Android uses softwareKeyboardLayoutMode "pan" to avoid double-resize.
     <View
       style={{
         flex: 1,
         backgroundColor: Colors.background,
         paddingTop: insets.top,
-        paddingBottom: Platform.OS === 'android' ? 0 : insets.bottom,
+        paddingBottom: bottomNavPadding,
       }}
     >
 
@@ -746,14 +748,14 @@ return (
         )}
 
         {/* ── Stream Chat Container ── */}
-        {/* iOS: Stream KCV + header offset. Android: KCV disabled to keep a zero-gap resting baseline. */}
+        {/* Stream KCV handles keyboard attachment on both platforms.
+            Offset keeps the input/list clear of the custom top header area. */}
         <View style={styles.chatContainer}>
-          <Chat client={streamClient} style={EVENT_STREAM_THEME}>
+          <Chat client={streamClient} style={STREAM_THEME}>
               <Channel
                 channel={streamChannel}
-                theme={EVENT_STREAM_THEME}
-                disableKeyboardCompatibleView={Platform.OS === 'android'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+                disableKeyboardCompatibleView={false}
+                keyboardVerticalOffset={insets.top + 56}
                 enableMessageReactions
                 enableMessageReplies
                 MessageHeader={SenderNameHeader}
