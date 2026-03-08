@@ -166,6 +166,10 @@ export const STREAM_THEME = {
       },
     },
   },
+
+  dateHeader: {
+    text: { color: Colors.textTertiary },
+  },
   messageInput: {
     container: {
       backgroundColor: Colors.surface,
