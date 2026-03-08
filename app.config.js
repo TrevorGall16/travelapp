@@ -47,7 +47,7 @@ android: {
         "FOREGROUND_SERVICE"
       ],
       predictiveBackGestureEnabled: false,
-      softwareKeyboardLayoutMode: "resize",
+      softwareKeyboardLayoutMode: "pan",
       navigationBar: {
         visible: true,
         backgroundColor: "#000000",

@@ -105,6 +105,7 @@ export default function EventChatScreen() {
   const isMockEvent = eventId === MOCK_EVENT_ID;
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bottomInputBaseline = insets.bottom;
 
   const { user, profile, streamToken } = useAuthStore();
 
@@ -639,13 +640,14 @@ export default function EventChatScreen() {
 // ── Main render ────────────────────────────────────────────────────────────
 return (
     // OverlayProvider lives in app/_layout.tsx — do NOT nest it here.
-    // iOS: Stream's KCV handles keyboard avoidance inside Channel.
-    // Android: KCV is disabled; adjustResize (app.config.js) handles it.
+    // Stream's KCV handles keyboard avoidance on both iOS + Android.
+    // Android uses softwareKeyboardLayoutMode "pan" to avoid double-resize.
     <View
       style={{
         flex: 1,
         backgroundColor: Colors.background,
         paddingTop: insets.top,
+        paddingBottom: bottomInputBaseline,
       }}
     >
 
@@ -731,55 +733,56 @@ return (
         )}
 
         {/* ── Stream Chat Container ── */}
-        {/* Android: adjustResize (app.config.js) handles keyboard natively.
-            KCV is disabled to prevent double-avoidance (gap after dismiss).
-            iOS: KCV handles keyboard; offset = header height above Channel. */}
+        {/* Stream KCV handles keyboard attachment on both platforms.
+            Offset keeps the input/list clear of the custom top header area. */}
+        <View style={styles.chatContainer}>
           <Chat client={streamClient} style={STREAM_THEME}>
-            <Channel
-              channel={streamChannel}
-              disableKeyboardCompatibleView={Platform.OS === 'android'}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
-              enableMessageReactions
-              enableMessageReplies
-              MessageHeader={SenderNameHeader}
-              MessageSimple={BlockFilteredMessageSimple}
-              InputButtons={ChatInputButtons}
-              hasImagePicker
-              hasCameraPicker
-              hasFilePicker={false}
-              hasCommands={false}
-              messageActions={({ message, dismissOverlay }) => {
-                const actions = [
-                  {
-                    title: 'Report',
-                    icon: undefined,
-                    action: () => {
-                      dismissOverlay();
-                      if (user && message) {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                        reportMessageToSupabase(
-                          user.id,
-                          message as MessageResponse,
-                          `event_${eventId}`,
-                        );
-                      }
+              <Channel
+                channel={streamChannel}
+                disableKeyboardCompatibleView={false}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+                enableMessageReactions
+                enableMessageReplies
+                MessageHeader={SenderNameHeader}
+                MessageSimple={BlockFilteredMessageSimple}
+                InputButtons={ChatInputButtons}
+                hasImagePicker
+                hasCameraPicker
+                hasFilePicker={false}
+                hasCommands={false}
+                messageActions={({ message, dismissOverlay }) => {
+                  const actions = [
+                    {
+                      title: 'Report',
+                      icon: undefined,
+                      action: () => {
+                        dismissOverlay();
+                        if (user && message) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                          reportMessageToSupabase(
+                            user.id,
+                            message as MessageResponse,
+                            `event_${eventId}`,
+                          );
+                        }
+                      },
+                      titleStyle: { color: Colors.error },
                     },
-                    titleStyle: { color: Colors.error },
-                  },
-                ];
-                return actions;
-              }}
-            >
-              {/* SDK defaults: own messages right, others left (CHAT_RULE_01).
-                  Avatars show on last message per group. Timestamps via MessageFooter.
-                  Date separators rendered automatically. No extra props needed. */}
-              <MessageList />
+                  ];
+                  return actions;
+                }}
+              >
+                {/* SDK defaults: own messages right, others left (CHAT_RULE_01).
+                    Avatars show on last message per group. Timestamps via MessageFooter.
+                    Date separators rendered automatically. No extra props needed. */}
+                <MessageList />
 
-              {(isParticipant || isHost) && (
-                <MessageInput />
-              )}
-            </Channel>
+                {(isParticipant || isHost) && (
+                  <MessageInput />
+                )}
+              </Channel>
           </Chat>
+        </View>
 
         {/* ── Overlays & Modals ── */}
         {isDeleting && (
