@@ -655,14 +655,22 @@ export default function EventChatScreen() {
 // ── Main render ────────────────────────────────────────────────────────────
 return (
     // OverlayProvider lives in app/_layout.tsx — do NOT nest it here.
+<<<<<<< HEAD
     // Stream's KCV handles keyboard avoidance on both iOS + Android.
     // Android uses softwareKeyboardLayoutMode "pan" to avoid double-resize.
+=======
+    // iOS uses Stream KCV; Android uses softwareKeyboardLayoutMode "pan" + native positioning.
+>>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
     <View
       style={{
         flex: 1,
         backgroundColor: Colors.background,
         paddingTop: insets.top,
+<<<<<<< HEAD
         paddingBottom: bottomNavPadding,
+=======
+        paddingBottom: Platform.OS === 'android' ? 0 : insets.bottom,
+>>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
       }}
     >
 
@@ -748,6 +756,7 @@ return (
         )}
 
         {/* ── Stream Chat Container ── */}
+<<<<<<< HEAD
         {/* Stream KCV handles keyboard attachment on both platforms.
             Offset keeps the input/list clear of the custom top header area. */}
         <View style={styles.chatContainer}>
@@ -756,6 +765,16 @@ return (
                 channel={streamChannel}
                 disableKeyboardCompatibleView={false}
                 keyboardVerticalOffset={insets.top + 56}
+=======
+        {/* iOS: Stream KCV + header offset. Android: KCV disabled to keep a zero-gap resting baseline. */}
+        <View style={styles.chatContainer}>
+          <Chat client={streamClient} style={EVENT_STREAM_THEME}>
+              <Channel
+                channel={streamChannel}
+                theme={EVENT_STREAM_THEME}
+                disableKeyboardCompatibleView={Platform.OS === 'android'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+>>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
                 enableMessageReactions
                 enableMessageReplies
                 MessageHeader={SenderNameHeader}

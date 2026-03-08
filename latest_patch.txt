@@ -1,0 +1,243 @@
+From b892169a97215f3cea1db1095fe522e53a6a3043 Mon Sep 17 00:00:00 2001
+From: TrevorGall16 <103269809+TrevorGall16@users.noreply.github.com>
+Date: Sun, 8 Mar 2026 05:35:29 +0100
+Subject: [PATCH] Force zero-gap Android chat baseline and hardcode date header
+ contrast
+
+---
+ app.config.js             |   4 +-
+ app/dm/[id].tsx           |   4 +-
+ app/event/[id].tsx        | 116 ++++++++++++++++++++++----------------
+ constants/theme.ts        |   9 +++
+ styles/eventChatStyles.ts |   4 ++
+ 5 files changed, 83 insertions(+), 54 deletions(-)
+
+diff --git a/app.config.js b/app.config.js
+index 9ed4b76..b34051f 100644
+--- a/app.config.js
++++ b/app.config.js
+@@ -47,7 +47,7 @@ android: {
+         "FOREGROUND_SERVICE"
+       ],
+       predictiveBackGestureEnabled: false,
+-      softwareKeyboardLayoutMode: "resize",
++      softwareKeyboardLayoutMode: "pan",
+       navigationBar: {
+         visible: true,
+         backgroundColor: "#000000",
+@@ -81,4 +81,4 @@ android: {
+       ]
+     ]
+   }
+-};
+\ No newline at end of file
++};
+diff --git a/app/dm/[id].tsx b/app/dm/[id].tsx
+index 7808624..1a151c4 100644
+--- a/app/dm/[id].tsx
++++ b/app/dm/[id].tsx
+@@ -145,11 +145,11 @@ export default function DMChatScreen() {
+         <View style={{ width: 40 }} />
+       </View>
+ 
+-      {/* Chat — Android: adjustResize handles keyboard, KCV disabled.
+-               iOS: KCV handles keyboard; offset = header height. */}
++      {/* Chat — iOS uses Stream KCV; Android keeps KCV disabled. */}
+         <Chat client={streamClient} style={STREAM_THEME}>
+           <Channel
+             channel={channel}
++            theme={STREAM_THEME as any}
+             disableKeyboardCompatibleView={Platform.OS === 'android'}
+             keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+             MessageSimple={BlockFilteredMessage}
+diff --git a/app/event/[id].tsx b/app/event/[id].tsx
+index 8c6bdcd..40e20e5 100644
+--- a/app/event/[id].tsx
++++ b/app/event/[id].tsx
+@@ -169,6 +169,21 @@ export default function EventChatScreen() {
+     [], // stable — reads blockedUserIds via ref
+   );
+ 
++  const EVENT_STREAM_THEME = {
++    ...STREAM_THEME,
++    dateHeader: { text: { color: '#E0E0E0' } },
++    messageList: { dateHeader: { text: { color: '#E0E0E0' } } },
++    messageInput: {
++      ...STREAM_THEME.messageInput,
++      container: {
++        ...STREAM_THEME.messageInput.container,
++        paddingVertical: 0,
++        paddingBottom: 0,
++        marginBottom: 0,
++      },
++    },
++  } as any;
++
+   // ── 5-second timeout: surface the error instead of spinning forever ────────
+   useEffect(() => {
+     if (!isConnecting) return;
+@@ -639,13 +654,13 @@ export default function EventChatScreen() {
+ // ── Main render ────────────────────────────────────────────────────────────
+ return (
+     // OverlayProvider lives in app/_layout.tsx — do NOT nest it here.
+-    // iOS: Stream's KCV handles keyboard avoidance inside Channel.
+-    // Android: KCV is disabled; adjustResize (app.config.js) handles it.
++    // iOS uses Stream KCV; Android uses softwareKeyboardLayoutMode "pan" + native positioning.
+     <View
+       style={{
+         flex: 1,
+         backgroundColor: Colors.background,
+         paddingTop: insets.top,
++        paddingBottom: Platform.OS === 'android' ? 0 : insets.bottom,
+       }}
+     >
+ 
+@@ -731,55 +746,56 @@ return (
+         )}
+ 
+         {/* ── Stream Chat Container ── */}
+-        {/* Android: adjustResize (app.config.js) handles keyboard natively.
+-            KCV is disabled to prevent double-avoidance (gap after dismiss).
+-            iOS: KCV handles keyboard; offset = header height above Channel. */}
+-          <Chat client={streamClient} style={STREAM_THEME}>
+-            <Channel
+-              channel={streamChannel}
+-              disableKeyboardCompatibleView={Platform.OS === 'android'}
+-              keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+-              enableMessageReactions
+-              enableMessageReplies
+-              MessageHeader={SenderNameHeader}
+-              MessageSimple={BlockFilteredMessageSimple}
+-              InputButtons={ChatInputButtons}
+-              hasImagePicker
+-              hasCameraPicker
+-              hasFilePicker={false}
+-              hasCommands={false}
+-              messageActions={({ message, dismissOverlay }) => {
+-                const actions = [
+-                  {
+-                    title: 'Report',
+-                    icon: undefined,
+-                    action: () => {
+-                      dismissOverlay();
+-                      if (user && message) {
+-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+-                        reportMessageToSupabase(
+-                          user.id,
+-                          message as MessageResponse,
+-                          `event_${eventId}`,
+-                        );
+-                      }
++        {/* iOS: Stream KCV + header offset. Android: KCV disabled to keep a zero-gap resting baseline. */}
++        <View style={styles.chatContainer}>
++          <Chat client={streamClient} style={EVENT_STREAM_THEME}>
++              <Channel
++                channel={streamChannel}
++                theme={EVENT_STREAM_THEME}
++                disableKeyboardCompatibleView={Platform.OS === 'android'}
++                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
++                enableMessageReactions
++                enableMessageReplies
++                MessageHeader={SenderNameHeader}
++                MessageSimple={BlockFilteredMessageSimple}
++                InputButtons={ChatInputButtons}
++                hasImagePicker
++                hasCameraPicker
++                hasFilePicker={false}
++                hasCommands={false}
++                messageActions={({ message, dismissOverlay }) => {
++                  const actions = [
++                    {
++                      title: 'Report',
++                      icon: undefined,
++                      action: () => {
++                        dismissOverlay();
++                        if (user && message) {
++                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
++                          reportMessageToSupabase(
++                            user.id,
++                            message as MessageResponse,
++                            `event_${eventId}`,
++                          );
++                        }
++                      },
++                      titleStyle: { color: Colors.error },
+                     },
+-                    titleStyle: { color: Colors.error },
+-                  },
+-                ];
+-                return actions;
+-              }}
+-            >
+-              {/* SDK defaults: own messages right, others left (CHAT_RULE_01).
+-                  Avatars show on last message per group. Timestamps via MessageFooter.
+-                  Date separators rendered automatically. No extra props needed. */}
+-              <MessageList />
+-
+-              {(isParticipant || isHost) && (
+-                <MessageInput />
+-              )}
+-            </Channel>
++                  ];
++                  return actions;
++                }}
++              >
++                {/* SDK defaults: own messages right, others left (CHAT_RULE_01).
++                    Avatars show on last message per group. Timestamps via MessageFooter.
++                    Date separators rendered automatically. No extra props needed. */}
++                <MessageList />
++
++                {(isParticipant || isHost) && (
++                  <MessageInput />
++                )}
++              </Channel>
+           </Chat>
++        </View>
+ 
+         {/* ── Overlays & Modals ── */}
+         {isDeleting && (
+@@ -829,4 +845,4 @@ return (
+ 
+     </View>
+ );
+-}
+\ No newline at end of file
++}
+diff --git a/constants/theme.ts b/constants/theme.ts
+index 2945ec6..4bb9bac 100644
+--- a/constants/theme.ts
++++ b/constants/theme.ts
+@@ -166,6 +166,15 @@ export const STREAM_THEME = {
+       },
+     },
+   },
++
++  dateHeader: {
++    text: { color: '#E0E0E0' },
++  },
++  messageList: {
++    dateHeader: {
++      text: { color: '#E0E0E0' },
++    },
++  },
+   messageInput: {
+     container: {
+       backgroundColor: Colors.surface,
+diff --git a/styles/eventChatStyles.ts b/styles/eventChatStyles.ts
+index 2bea1ff..f09ea04 100644
+--- a/styles/eventChatStyles.ts
++++ b/styles/eventChatStyles.ts
+@@ -165,6 +165,10 @@ export const styles = StyleSheet.create({
+     fontWeight: '600',
+   },
+ 
++  chatContainer: {
++    flex: 1,
++  },
++
+   // ── Expired banner ──────────────────────────────────────────────────────
+   expiredBanner: {
+     backgroundColor: Colors.errorBackground,
+-- 
+2.49.0.windows.1
+

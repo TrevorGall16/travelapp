@@ -168,7 +168,16 @@ export const STREAM_THEME = {
   },
 
   dateHeader: {
+<<<<<<< HEAD
     text: { color: Colors.textTertiary },
+=======
+    text: { color: '#E0E0E0' },
+  },
+  messageList: {
+    dateHeader: {
+      text: { color: '#E0E0E0' },
+    },
+>>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
   },
   messageInput: {
     container: {

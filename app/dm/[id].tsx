@@ -144,12 +144,22 @@ export default function DMChatScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+<<<<<<< HEAD
       {/* Chat — Stream KCV handles keyboard on both iOS + Android. */}
         <Chat client={streamClient} style={STREAM_THEME}>
           <Channel
             channel={channel}
             disableKeyboardCompatibleView={false}
             keyboardVerticalOffset={insets.top + 56}
+=======
+      {/* Chat — iOS uses Stream KCV; Android keeps KCV disabled. */}
+        <Chat client={streamClient} style={STREAM_THEME}>
+          <Channel
+            channel={channel}
+            theme={STREAM_THEME as any}
+            disableKeyboardCompatibleView={Platform.OS === 'android'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+>>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
             MessageSimple={BlockFilteredMessage}
             InputButtons={ChatInputButtons}
             hasImagePicker
