@@ -166,6 +166,15 @@ export const STREAM_THEME = {
       },
     },
   },
+
+  dateHeader: {
+    text: { color: '#E0E0E0' },
+  },
+  messageList: {
+    dateHeader: {
+      text: { color: '#E0E0E0' },
+    },
+  },
   messageInput: {
     container: {
       backgroundColor: Colors.surface,

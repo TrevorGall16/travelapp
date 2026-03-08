@@ -165,6 +165,10 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  chatContainer: {
+    flex: 1,
+  },
+
   // ── Expired banner ──────────────────────────────────────────────────────
   expiredBanner: {
     backgroundColor: Colors.errorBackground,

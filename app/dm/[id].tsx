@@ -145,11 +145,11 @@ export default function DMChatScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Chat — Android: adjustResize handles keyboard, KCV disabled.
-               iOS: KCV handles keyboard; offset = header height. */}
+      {/* Chat — iOS uses Stream KCV; Android keeps KCV disabled. */}
         <Chat client={streamClient} style={STREAM_THEME}>
           <Channel
             channel={channel}
+            theme={STREAM_THEME as any}
             disableKeyboardCompatibleView={Platform.OS === 'android'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
             MessageSimple={BlockFilteredMessage}

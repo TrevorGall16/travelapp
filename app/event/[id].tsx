@@ -169,6 +169,21 @@ export default function EventChatScreen() {
     [], // stable — reads blockedUserIds via ref
   );
 
+  const EVENT_STREAM_THEME = {
+    ...STREAM_THEME,
+    dateHeader: { text: { color: '#E0E0E0' } },
+    messageList: { dateHeader: { text: { color: '#E0E0E0' } } },
+    messageInput: {
+      ...STREAM_THEME.messageInput,
+      container: {
+        ...STREAM_THEME.messageInput.container,
+        paddingVertical: 0,
+        paddingBottom: 0,
+        marginBottom: 0,
+      },
+    },
+  } as any;
+
   // ── 5-second timeout: surface the error instead of spinning forever ────────
   useEffect(() => {
     if (!isConnecting) return;
@@ -639,13 +654,13 @@ export default function EventChatScreen() {
 // ── Main render ────────────────────────────────────────────────────────────
 return (
     // OverlayProvider lives in app/_layout.tsx — do NOT nest it here.
-    // iOS: Stream's KCV handles keyboard avoidance inside Channel.
-    // Android: KCV is disabled; adjustResize (app.config.js) handles it.
+    // iOS uses Stream KCV; Android uses softwareKeyboardLayoutMode "pan" + native positioning.
     <View
       style={{
         flex: 1,
         backgroundColor: Colors.background,
         paddingTop: insets.top,
+        paddingBottom: Platform.OS === 'android' ? 0 : insets.bottom,
       }}
     >
 
@@ -731,55 +746,56 @@ return (
         )}
 
         {/* ── Stream Chat Container ── */}
-        {/* Android: adjustResize (app.config.js) handles keyboard natively.
-            KCV is disabled to prevent double-avoidance (gap after dismiss).
-            iOS: KCV handles keyboard; offset = header height above Channel. */}
-          <Chat client={streamClient} style={STREAM_THEME}>
-            <Channel
-              channel={streamChannel}
-              disableKeyboardCompatibleView={Platform.OS === 'android'}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
-              enableMessageReactions
-              enableMessageReplies
-              MessageHeader={SenderNameHeader}
-              MessageSimple={BlockFilteredMessageSimple}
-              InputButtons={ChatInputButtons}
-              hasImagePicker
-              hasCameraPicker
-              hasFilePicker={false}
-              hasCommands={false}
-              messageActions={({ message, dismissOverlay }) => {
-                const actions = [
-                  {
-                    title: 'Report',
-                    icon: undefined,
-                    action: () => {
-                      dismissOverlay();
-                      if (user && message) {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                        reportMessageToSupabase(
-                          user.id,
-                          message as MessageResponse,
-                          `event_${eventId}`,
-                        );
-                      }
+        {/* iOS: Stream KCV + header offset. Android: KCV disabled to keep a zero-gap resting baseline. */}
+        <View style={styles.chatContainer}>
+          <Chat client={streamClient} style={EVENT_STREAM_THEME}>
+              <Channel
+                channel={streamChannel}
+                theme={EVENT_STREAM_THEME}
+                disableKeyboardCompatibleView={Platform.OS === 'android'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+                enableMessageReactions
+                enableMessageReplies
+                MessageHeader={SenderNameHeader}
+                MessageSimple={BlockFilteredMessageSimple}
+                InputButtons={ChatInputButtons}
+                hasImagePicker
+                hasCameraPicker
+                hasFilePicker={false}
+                hasCommands={false}
+                messageActions={({ message, dismissOverlay }) => {
+                  const actions = [
+                    {
+                      title: 'Report',
+                      icon: undefined,
+                      action: () => {
+                        dismissOverlay();
+                        if (user && message) {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                          reportMessageToSupabase(
+                            user.id,
+                            message as MessageResponse,
+                            `event_${eventId}`,
+                          );
+                        }
+                      },
+                      titleStyle: { color: Colors.error },
                     },
-                    titleStyle: { color: Colors.error },
-                  },
-                ];
-                return actions;
-              }}
-            >
-              {/* SDK defaults: own messages right, others left (CHAT_RULE_01).
-                  Avatars show on last message per group. Timestamps via MessageFooter.
-                  Date separators rendered automatically. No extra props needed. */}
-              <MessageList />
+                  ];
+                  return actions;
+                }}
+              >
+                {/* SDK defaults: own messages right, others left (CHAT_RULE_01).
+                    Avatars show on last message per group. Timestamps via MessageFooter.
+                    Date separators rendered automatically. No extra props needed. */}
+                <MessageList />
 
-              {(isParticipant || isHost) && (
-                <MessageInput />
-              )}
-            </Channel>
+                {(isParticipant || isHost) && (
+                  <MessageInput />
+                )}
+              </Channel>
           </Chat>
+        </View>
 
         {/* ── Overlays & Modals ── */}
         {isDeleting && (
