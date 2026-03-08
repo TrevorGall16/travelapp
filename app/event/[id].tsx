@@ -170,6 +170,21 @@ export default function EventChatScreen() {
     [], // stable — reads blockedUserIds via ref
   );
 
+  const EVENT_STREAM_THEME = {
+    ...STREAM_THEME,
+    dateHeader: { text: { color: '#E0E0E0' } },
+    messageList: { dateHeader: { text: { color: '#E0E0E0' } } },
+    messageInput: {
+      ...STREAM_THEME.messageInput,
+      container: {
+        ...STREAM_THEME.messageInput.container,
+        paddingVertical: 0,
+        paddingBottom: 0,
+        marginBottom: 0,
+      },
+    },
+  } as any;
+
   // ── 5-second timeout: surface the error instead of spinning forever ────────
   useEffect(() => {
     if (!isConnecting) return;
