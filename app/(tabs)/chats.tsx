@@ -18,7 +18,7 @@ import type { ChannelPreviewUIComponentProps } from 'stream-chat-expo';
 import { streamClient } from '../../lib/streamClient';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
-import { Colors, Radius, Spacing, STREAM_THEME } from '../../constants/theme';
+import { Colors, Radius, Spacing, getStreamTheme, useThemeRefresh } from '../../constants/theme';
 import { purgeGhostChannels } from '../../lib/streamCleanup';
 import { ActionModal } from '../../components/ActionModal';
 
@@ -248,6 +248,7 @@ const rowStyles = StyleSheet.create({
 
 export default function ChatsScreen() {
   const { user } = useAuthStore();
+  useThemeRefresh();
   const [validEventIds, setValidEventIds] = useState<Set<string>>(new Set());
 
   // ── Leave chat modal state ──
@@ -330,14 +331,14 @@ export default function ChatsScreen() {
 
   // ── Main ─────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.screenTitle}>Messages</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
+      <View style={[styles.header, { borderBottomColor: Colors.border }]}>
+        <Text style={[styles.screenTitle, { color: Colors.textPrimary }]}>Messages</Text>
       </View>
 
-      <Chat client={streamClient} style={STREAM_THEME}>
+      <Chat client={streamClient} style={getStreamTheme()}>
         <ChannelList
-          filters={{ type: 'messaging', members: { $in: [user.id] } }}
+          filters={{ members: { $in: [user.id] } }}
           sort={{ last_message_at: -1 }}
           Preview={(previewProps) => (
             <EventChannelPreview {...previewProps} validEventIds={validEventIds} onRequestLeave={handleRequestLeave} />

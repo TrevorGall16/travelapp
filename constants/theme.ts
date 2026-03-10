@@ -115,15 +115,41 @@ export function getColors(scheme: 'light' | 'dark'): typeof DarkColors {
 // mutates these values in-place so static stylesheets pick them up on next render.
 export const Colors: Record<keyof typeof DarkColors, string> = { ...DarkColors };
 
-/** Call from root layout to switch the active palette at runtime. */
+// ── Theme change listener — allows React components to re-render on switch ──
+let _currentScheme: 'light' | 'dark' = 'dark';
+let _listeners: Array<() => void> = [];
+
+export function getCurrentScheme(): 'light' | 'dark' { return _currentScheme; }
+
+/** Subscribe to theme changes. Returns an unsubscribe function. */
+export function onThemeChange(cb: () => void): () => void {
+  _listeners.push(cb);
+  return () => { _listeners = _listeners.filter(l => l !== cb); };
+}
+
+/** Switch the active palette at runtime. Mutates Colors + notifies listeners. */
 export function setColorScheme(scheme: 'light' | 'dark') {
+  if (scheme === _currentScheme) return;
+  _currentScheme = scheme;
   const palette = getColors(scheme);
   for (const key of Object.keys(palette) as Array<keyof typeof DarkColors>) {
     (Colors as Record<string, string>)[key] = palette[key];
   }
+  _listeners.forEach(cb => cb());
 }
 
 export type ColorKey = keyof typeof DarkColors;
+
+// ── React hook — forces a re-render when the theme changes ──────────────────
+import { useState, useEffect } from 'react';
+
+/** Returns the current scheme and re-renders the component when it changes.
+ *  Use this in root layout and key screens to react to theme switches. */
+export function useThemeRefresh(): 'light' | 'dark' {
+  const [scheme, setScheme] = useState(_currentScheme);
+  useEffect(() => onThemeChange(() => setScheme(_currentScheme)), []);
+  return scheme;
+}
 
 // ─── Shadow Presets ──────────────────────────────────────────────────────────
 // Platform-aware shadow helpers for consistent elevation.
@@ -172,10 +198,11 @@ export const Shadows = {
   }),
 } as const;
 
-// ─── Stream Chat Dark Theme (unified) ────────────────────────────────────────
-// Used by both the channel list (chats.tsx) and the chat screen ([id].tsx).
+// ─── Stream Chat Theme (unified) ─────────────────────────────────────────────
+// Returns a fresh theme object that reads from the (possibly mutated) Colors.
+// Must be called at render time, not at module level, to pick up theme switches.
 
-export const STREAM_THEME = {
+export function getStreamTheme() { return {
   colors: {
     white: Colors.surface,
     white_snow: Colors.background,
@@ -248,4 +275,7 @@ export const STREAM_THEME = {
       paddingLeft: 8,
     },
   },
-};
+}; }
+
+/** @deprecated Use getStreamTheme() instead for theme reactivity. */
+export const STREAM_THEME = getStreamTheme();

@@ -26,8 +26,8 @@ import { supabase } from '../../lib/supabase';
 import { streamClient } from '../../lib/streamClient';
 import { useAuthStore } from '../../stores/authStore';
 import { useBlockedUsers } from '../../hooks/useBlockedUsers';
-import { Colors } from '../../constants/theme';
-import { styles, STREAM_THEME } from '../../styles/eventChatStyles';
+import { Colors, getStreamTheme, useThemeRefresh } from '../../constants/theme';
+import { styles } from '../../styles/eventChatStyles';
 import { MeetupBanner } from '../../components/chat/MeetupBanner';
 import type { MeetupPoint } from '../../components/chat/MeetupBanner';
 import { OptionsModal } from '../../components/chat/OptionsModal';
@@ -105,7 +105,7 @@ export default function EventChatScreen() {
   const isMockEvent = eventId === MOCK_EVENT_ID;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-
+  useThemeRefresh(); // re-render on theme switch
 
   const { user, profile, streamToken } = useAuthStore();
 
@@ -648,7 +648,7 @@ export default function EventChatScreen() {
 //   iOS: Stream KCV enabled. keyboardVerticalOffset = header area above chat.
 
 return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: Colors.background }]}>
 
         {/* ─── Zone A: Fixed Top ────────────────────────────────────────── */}
         <View style={{ paddingTop: insets.top }}>
@@ -737,11 +737,10 @@ return (
         {/* ─── Zone B + C: Chat area (flex: 1) ─────────────────────────── */}
         {/* Stream Channel owns MessageList (Zone B, flex:1) and MessageInput (Zone C, fixed). */}
         <View style={styles.chatContainer}>
-          <Chat client={streamClient} style={STREAM_THEME}>
+          <Chat client={streamClient} style={getStreamTheme()}>
               <Channel
                 channel={streamChannel}
-                disableKeyboardCompatibleView={Platform.OS === 'android'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : -50}
                 enableMessageReactions
                 enableMessageReplies
                 MessageHeader={SenderNameHeader}

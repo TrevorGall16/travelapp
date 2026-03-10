@@ -2,13 +2,14 @@ import { Platform, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Map, CalendarCheck, MessageCircle, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/theme';
+import { Colors, useThemeRefresh } from '../../constants/theme';
 
 /** Content-area height of the tab bar (excluding safe area). */
 export const TAB_CONTENT_HEIGHT = 56;
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  useThemeRefresh();
 
   // Consistent tab bar height: content area + safe area bottom
   const tabBarHeight = TAB_CONTENT_HEIGHT + (Platform.OS === 'ios' ? Math.max(insets.bottom, 16) : insets.bottom + 8);
@@ -19,8 +20,8 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
+          backgroundColor: Colors.surface,   // reactive via useThemeRefresh
+          borderTopColor: Colors.border,      // reactive via useThemeRefresh
           borderTopWidth: StyleSheet.hairlineWidth,
           height: tabBarHeight,
           paddingBottom: tabBarPaddingBottom,

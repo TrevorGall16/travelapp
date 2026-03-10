@@ -24,7 +24,7 @@ import type { Channel as StreamChannel } from 'stream-chat';
 
 import { streamClient } from '../../lib/streamClient';
 import { useBlockedUsers } from '../../hooks/useBlockedUsers';
-import { Colors, STREAM_THEME } from '../../constants/theme';
+import { Colors, getStreamTheme, useThemeRefresh } from '../../constants/theme';
 import { styles } from '../../styles/eventChatStyles';
 import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
 
@@ -32,6 +32,7 @@ export default function DMChatScreen() {
   const { id: channelId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  useThemeRefresh();
 
   const [channel, setChannel] = useState<StreamChannel | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
@@ -127,7 +128,7 @@ export default function DMChatScreen() {
 
   // Rigid Container: Zone A (header) + Zone B+C (chat) + baseline spacer.
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: Colors.background }]}>
 
       {/* ─── Zone A: Fixed Top ───────────────────────────────────────── */}
       <View style={{ paddingTop: insets.top }}>
@@ -151,11 +152,10 @@ export default function DMChatScreen() {
 
       {/* ─── Zone B + C: Chat area ───────────────────────────────────── */}
       <View style={styles.chatContainer}>
-        <Chat client={streamClient} style={STREAM_THEME}>
+        <Chat client={streamClient} style={getStreamTheme()}>
           <Channel
             channel={channel}
-            disableKeyboardCompatibleView={Platform.OS === 'android'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : -50}
             MessageSimple={BlockFilteredMessage}
             InputButtons={ChatInputButtons}
             hasImagePicker

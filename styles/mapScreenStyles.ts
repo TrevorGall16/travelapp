@@ -6,8 +6,7 @@ import { Colors, Radius, Shadows, Spacing } from '../constants/theme';
 export const styles = StyleSheet.create({
   fill: { flex: 1 },
   centeredFill: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xxl, gap: Spacing.lg, backgroundColor: Colors.background },
-  mapContainer: { flex: 1, backgroundColor: 'red' },  // TODO: remove red debug bg once tiles confirmed
-  mapAbsoluteFill: { ...StyleSheet.absoluteFillObject },
+  mapContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
   map: { flex: 1 },
 
   // Map header bar

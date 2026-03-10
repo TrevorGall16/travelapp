@@ -650,50 +650,10 @@ const handleMapReady = useCallback(() => {
 
   return (
     <View style={styles.fill}>
-      {/* ── Map Header ── */}
-      <View style={[styles.mapHeader, { paddingTop: insets.top }]}>
-        <View style={styles.mapHeaderSpacer} />
-        <Text style={styles.appName}>Globe</Text>
-        <View style={styles.mapHeaderActions}>
-          <Pressable
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/notifications');
-            }}
-          >
-            <Bell size={22} color={Colors.textPrimary} strokeWidth={2} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setIsListVisible(true);
-            }}
-          >
-            <List size={22} color={Colors.textPrimary} strokeWidth={2} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setIsFilterModalVisible(true);
-            }}
-          >
-            <SlidersHorizontal
-              size={22}
-              color={activeFilter !== 'all' ? Colors.accent : Colors.textPrimary}
-              strokeWidth={2}
-            />
-          </Pressable>
-        </View>
-      </View>
-
-      {/* Map container — red bg for debugging (visible = container renders, tiles don't) */}
+      {/* ── MapView: FIRST child, absolute-fill, behind everything ──── */}
       <View style={styles.mapContainer}>
-        <View style={styles.mapAbsoluteFill}>
-{/* @ts-ignore — Android-only prop suppression */}
-<MapView
+        {/* @ts-ignore — Android-only prop suppression */}
+        <MapView
           key={mapKey}
           ref={mapRef}
           style={styles.map}
@@ -740,6 +700,44 @@ const handleMapReady = useCallback(() => {
             </Marker>
           )}
         </MapView>
+      </View>
+
+      {/* ── Map Header — layered above map ── */}
+      <View style={[styles.mapHeader, { paddingTop: insets.top }]}>
+        <View style={styles.mapHeaderSpacer} />
+        <Text style={styles.appName}>Globe</Text>
+        <View style={styles.mapHeaderActions}>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/notifications');
+            }}
+          >
+            <Bell size={22} color={Colors.textPrimary} strokeWidth={2} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIsListVisible(true);
+            }}
+          >
+            <List size={22} color={Colors.textPrimary} strokeWidth={2} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIsFilterModalVisible(true);
+            }}
+          >
+            <SlidersHorizontal
+              size={22}
+              color={activeFilter !== 'all' ? Colors.accent : Colors.textPrimary}
+              strokeWidth={2}
+            />
+          </Pressable>
         </View>
       </View>
 

@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { StyleSheet, useColorScheme, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { OverlayProvider } from 'stream-chat-expo';
 import type { Subscription } from 'expo-notifications';
-import { Colors, setColorScheme } from '../constants/theme';
+import { Colors, useThemeRefresh } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { streamClient } from '../lib/streamClient';
 import {
@@ -41,13 +41,8 @@ export default function RootLayout() {
   const segments = useSegments();
   const notificationListenerRef = useRef<Subscription>();
 
-  // ── Color scheme — syncs OS light/dark preference to theme tokens ─────────
-  const colorScheme = useColorScheme();
-  useEffect(() => {
-    // TODO: For now, force dark mode. Flip to `colorScheme ?? 'dark'` when
-    // all screens are tested with the light palette.
-    setColorScheme('dark');
-  }, [colorScheme]);
+  // ── Theme reactivity — re-renders this layout when Colors mutates ─────────
+  useThemeRefresh();
 
   // ── Push notification listeners ────────────────────────────────────────────
   useEffect(() => {
@@ -291,9 +286,9 @@ if (session?.user) {
             causes the "ghost drag handle" bug when the keyboard closes. */}
         <OverlayProvider>
         {!isInitialized ? (
-          <View style={styles.splash} />
+          <View style={[styles.splash, { backgroundColor: Colors.background }]} />
         ) : (
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background } }}>
             <Stack.Screen name="(auth)" />
             {setupComplete && <Stack.Screen name="(tabs)" />}
             <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
