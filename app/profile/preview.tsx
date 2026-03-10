@@ -14,7 +14,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
-import { Colors, Radius, Spacing } from '../../constants/theme';
+import { useAppTheme, Radius, Spacing } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
 import { useAuthStore } from '../../stores/authStore';
 import ImageViewer from '../../components/profile/ImageViewer';
 
@@ -23,9 +24,246 @@ const AVATAR_RING = 3;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const FULL_PHOTO_WIDTH = SCREEN_WIDTH - 40;
 
+// ── Styles ─────────────────────────────────────────────────────────────────
+
+const createLocalStyles = (colors: ThemeColors) => StyleSheet.create({
+  flex: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  // ── Header ──────────────────────────────────────────────────
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  backBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  backLabel: {
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  headerRight: {
+    flex: 1,
+  },
+
+  // ── Scroll ──────────────────────────────────────────────────
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    gap: 16,
+  },
+
+  // ── Hero ────────────────────────────────────────────────────
+  hero: {
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+  },
+  avatarRing: {
+    width: AVATAR_SIZE + AVATAR_RING * 2 + 4,
+    height: AVATAR_SIZE + AVATAR_RING * 2 + 4,
+    borderRadius: (AVATAR_SIZE + AVATAR_RING * 2 + 4) / 2,
+    borderWidth: AVATAR_RING,
+    borderColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+  },
+  avatarFallback: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontSize: 40,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  displayName: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    letterSpacing: 0.3,
+    marginTop: 4,
+  },
+  countryLine: {
+    fontSize: 15,
+    color: colors.textSecondary,
+  },
+
+  // ── Full-width photo ────────────────────────────────────────
+  fullPhoto: {
+    width: FULL_PHOTO_WIDTH,
+    height: FULL_PHOTO_WIDTH * 0.75,
+    borderRadius: Radius.lg,
+    backgroundColor: colors.surface,
+  },
+  remainingPhotos: {
+    gap: 16,
+  },
+
+  // ── Cards ────────────────────────────────────────────────────
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 20,
+    gap: 12,
+  },
+  cardTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  bioText: {
+    fontSize: 15,
+    color: colors.textPrimary,
+    lineHeight: 23,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
+  },
+  igRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  igIcon: {
+    fontSize: 15,
+  },
+  igHandle: {
+    fontSize: 15,
+    color: colors.accent,
+    fontWeight: '500',
+  },
+  visitedCount: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginTop: -4,
+  },
+
+  // ── Tags ────────────────────────────────────────────────────
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  personaTag: {
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  personaTagText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.accent,
+  },
+  accentTag: {
+    backgroundColor: colors.accentSubtle,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  accentTagText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.accent,
+  },
+  neutralTag: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  neutralTagText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  countryTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  countryTagFlag: {
+    fontSize: 14,
+  },
+  countryTagName: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+
+  // ── Empty state ──────────────────────────────────────────────
+  emptyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 28,
+    alignItems: 'center',
+  },
+  emptyCardText: {
+    fontSize: 14,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+});
+
+// ── Component ──────────────────────────────────────────────────────────────
+
 export default function ProfilePreviewScreen() {
   const { profile } = useAuthStore();
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createLocalStyles(colors), [colors]);
 
   // ── Full-screen image viewer ──────────────────────────────────────────────
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -66,7 +304,7 @@ export default function ProfilePreviewScreen() {
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+          <ChevronLeft size={20} color={colors.textPrimary} strokeWidth={2.5} />
           <Text style={styles.backLabel}>Profile</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Public View</Text>
@@ -249,236 +487,3 @@ export default function ProfilePreviewScreen() {
     </View>
   );
 }
-
-// ── Styles ─────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-
-  // ── Header ──────────────────────────────────────────────────
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  backLabel: {
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  headerRight: {
-    flex: 1,
-  },
-
-  // ── Scroll ──────────────────────────────────────────────────
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 28,
-    gap: 16,
-  },
-
-  // ── Hero ────────────────────────────────────────────────────
-  hero: {
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 8,
-  },
-  avatarRing: {
-    width: AVATAR_SIZE + AVATAR_RING * 2 + 4,
-    height: AVATAR_SIZE + AVATAR_RING * 2 + 4,
-    borderRadius: (AVATAR_SIZE + AVATAR_RING * 2 + 4) / 2,
-    borderWidth: AVATAR_RING,
-    borderColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-  },
-  avatarFallback: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-  displayName: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    letterSpacing: 0.3,
-    marginTop: 4,
-  },
-  countryLine: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-  },
-
-  // ── Full-width photo ────────────────────────────────────────
-  fullPhoto: {
-    width: FULL_PHOTO_WIDTH,
-    height: FULL_PHOTO_WIDTH * 0.75,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
-  },
-  remainingPhotos: {
-    gap: 16,
-  },
-
-  // ── Cards ────────────────────────────────────────────────────
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 20,
-    gap: 12,
-  },
-  cardTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  bioText: {
-    fontSize: 15,
-    color: Colors.textPrimary,
-    lineHeight: 23,
-  },
-  emptyText: {
-    fontSize: 15,
-    color: Colors.textTertiary,
-    fontStyle: 'italic',
-  },
-  igRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  igIcon: {
-    fontSize: 15,
-  },
-  igHandle: {
-    fontSize: 15,
-    color: Colors.accent,
-    fontWeight: '500',
-  },
-  visitedCount: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-    marginTop: -4,
-  },
-
-  // ── Tags ────────────────────────────────────────────────────
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  personaTag: {
-    borderWidth: 1.5,
-    borderColor: Colors.accent,
-    backgroundColor: Colors.accentMuted,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  personaTagText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.accent,
-  },
-  accentTag: {
-    backgroundColor: Colors.accentSubtle,
-    borderWidth: 1,
-    borderColor: Colors.accent,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  accentTagText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.accent,
-  },
-  neutralTag: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  neutralTagText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: Colors.textSecondary,
-  },
-  countryTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  countryTagFlag: {
-    fontSize: 14,
-  },
-  countryTagName: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: Colors.textSecondary,
-  },
-
-  // ── Empty state ──────────────────────────────────────────────
-  emptyCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 28,
-    alignItems: 'center',
-  },
-  emptyCardText: {
-    fontSize: 14,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-});

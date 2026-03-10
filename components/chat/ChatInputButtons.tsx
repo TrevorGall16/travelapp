@@ -2,7 +2,7 @@
 // Custom InputButtons: inline Photo, Camera, and Poll icons in the message input bar.
 // Replaces the default single-attach-button UX with quick-access individual buttons.
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Image, Camera, BarChart3 } from 'lucide-react-native';
 import {
@@ -11,9 +11,12 @@ import {
   useChannelContext,
 } from 'stream-chat-expo';
 
-import { Colors } from '../../constants/theme';
+import { useAppTheme } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
 
 export function ChatInputButtons() {
+  const { colors } = useAppTheme();
+  const s = useMemo(() => createLocalStyles(colors), [colors]);
   const {
     pickAndUploadImageFromNativePicker,
     takeAndUploadImage,
@@ -32,7 +35,7 @@ export function ChatInputButtons() {
         style={({ pressed }) => [s.btn, pressed && s.pressed]}
         hitSlop={6}
       >
-        <Image size={20} color={Colors.textTertiary} />
+        <Image size={20} color={colors.textTertiary} />
       </Pressable>
 
       <Pressable
@@ -40,7 +43,7 @@ export function ChatInputButtons() {
         style={({ pressed }) => [s.btn, pressed && s.pressed]}
         hitSlop={6}
       >
-        <Camera size={20} color={Colors.textTertiary} />
+        <Camera size={20} color={colors.textTertiary} />
       </Pressable>
 
       {showPoll && (
@@ -49,14 +52,14 @@ export function ChatInputButtons() {
           style={({ pressed }) => [s.btn, pressed && s.pressed]}
           hitSlop={6}
         >
-          <BarChart3 size={20} color={Colors.textTertiary} />
+          <BarChart3 size={20} color={colors.textTertiary} />
         </Pressable>
       )}
     </View>
   );
 }
 
-const s = StyleSheet.create({
+const createLocalStyles = (colors: ThemeColors) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -68,6 +71,6 @@ const s = StyleSheet.create({
     borderRadius: 8,
   },
   pressed: {
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: colors.surfaceElevated,
   },
 });

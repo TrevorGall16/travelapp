@@ -1,7 +1,7 @@
 // app/event/[id].tsx — Group Chat Screen (Flow 5)
 // Triggered by: EventCard "Join Event" / "Open Chat", or My Events tab row tap.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -26,8 +26,8 @@ import { supabase } from '../../lib/supabase';
 import { streamClient } from '../../lib/streamClient';
 import { useAuthStore } from '../../stores/authStore';
 import { useBlockedUsers } from '../../hooks/useBlockedUsers';
-import { Colors, getStreamTheme, useThemeRefresh } from '../../constants/theme';
-import { styles } from '../../styles/eventChatStyles';
+import { useAppTheme, getStreamTheme } from '../../constants/theme';
+import { createStyles } from '../../styles/eventChatStyles';
 import { MeetupBanner } from '../../components/chat/MeetupBanner';
 import type { MeetupPoint } from '../../components/chat/MeetupBanner';
 import { OptionsModal } from '../../components/chat/OptionsModal';
@@ -37,17 +37,7 @@ import { MembersModal } from '../../components/chat/MembersModal';
 import type { MemberEntry } from '../../components/chat/MembersModal';
 import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
 
-// ─── Sender Name Header ─────────────────────────────────────────────────────
-// Shows the sender's display name above their message in group chat.
-
-function SenderNameHeader({ message, alignment }: { message?: any; alignment?: string }) {
-  if (!message?.user?.name || alignment === 'right') return null;
-  return (
-    <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.textTertiary, marginBottom: 2, marginLeft: 4 }}>
-      {message.user.name}
-    </Text>
-  );
-}
+// SenderNameHeader is created inside EventChatScreen so it can capture `colors` from the theme hook.
 
 // ─── Mock Testing Data ───────────────────────────────────────────────────────
 // Activated when eventId === "test-paris". Bypasses all Supabase fetching.
@@ -105,7 +95,21 @@ export default function EventChatScreen() {
   const isMockEvent = eventId === MOCK_EVENT_ID;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  useThemeRefresh(); // re-render on theme switch
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  // Shows the sender's display name above their message in group chat.
+  const SenderNameHeader = useCallback(
+    ({ message, alignment }: { message?: any; alignment?: string }) => {
+      if (!message?.user?.name || alignment === 'right') return null;
+      return (
+        <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textTertiary, marginBottom: 2, marginLeft: 4 }}>
+          {message.user.name}
+        </Text>
+      );
+    },
+    [colors.textTertiary],
+  );
 
   const { user, profile, streamToken } = useAuthStore();
 
@@ -431,34 +435,12 @@ export default function EventChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsJoining(true);
     try {
-      // Always fetch a live session token. Do NOT rely on supabase.functions.invoke
-      // auto-injecting the auth header — the FunctionsClient is constructed once
-      // at app start with the anon key and its static headers are NOT updated when
-      // the session changes (account switch, sign-out/sign-in). Passing the token
-      // explicitly as an override header is the only reliable approach.
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error: fnError } = await supabase.functions.invoke('join-event', {
+        body: { event_id: eventId },
+      });
+      if (fnError) throw fnError;
 
-      if (!session) {
-        Alert.alert('Session Error', 'Your session has expired. Please sign in again.');
-        return;
-      }
-
-      const response = await fetch(
-        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/join-event`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-          },
-          body: JSON.stringify({ event_id: eventId }),
-        },
-      );
-
-      const data = await response.json();
-
-      // Check semantic codes before inspecting response.ok — mirrors EventCard pattern.
+      // Check semantic codes returned by the Edge Function.
       if (data?.code === 'EVENT_EXPIRED') {
         Alert.alert('Event Ended', 'This event has already expired.');
         setEventStatus('expired');
@@ -482,10 +464,6 @@ export default function EventChatScreen() {
         Alert.alert('Event Full', data.error ?? 'This event just filled up.');
         setIsFull(true);
         return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`SERVER SAID: ${data.error || JSON.stringify(data)}`);
       }
 
       // Success — join-event now returns already_member:true when the DB insert
@@ -514,27 +492,10 @@ export default function EventChatScreen() {
     setDeleteConfirmVisible(false);
     setIsDeleting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        Alert.alert('Session Expired', 'Your session has expired. Please sign in again.');
-        setIsDeleting(false);
-        return;
-      }
-      const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-event`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-        },
-        body: JSON.stringify({ event_id: eventId }),
+      const { data, error: fnError } = await supabase.functions.invoke('delete-event', {
+        body: { event_id: eventId },
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(`SERVER SAID: ${data.error || JSON.stringify(data)}`);
-      }
+      if (fnError) throw fnError;
 
       // Clear overlay BEFORE navigating so it doesn't persist during transition
       setIsDeleting(false);
@@ -563,26 +524,10 @@ export default function EventChatScreen() {
           onPress: async () => {
             setIsLeaving(true);
             try {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) {
-                Alert.alert('Session Expired', 'Your session has expired. Please sign in again.');
-                setIsLeaving(false);
-                return;
-              }
-              const response = await fetch(
-                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
-                    'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-                  },
-                  body: JSON.stringify({ event_id: eventId }),
-                },
-              );
-              const data = await response.json();
-              if (!response.ok) throw new Error(data.error || 'Leave failed.');
+              const { data, error: fnError } = await supabase.functions.invoke('leave-event', {
+                body: { event_id: eventId },
+              });
+              if (fnError) throw fnError;
               // Optimistic update — user is now a spectator (read-only)
               setIsParticipant(false);
               setParticipantCount(prev => Math.max(0, prev - 1));
@@ -601,9 +546,9 @@ export default function EventChatScreen() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (isConnecting) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
-          <ActivityIndicator size="large" color={Colors.accent} />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Connecting to chat…</Text>
         </View>
       </View>
@@ -613,7 +558,7 @@ export default function EventChatScreen() {
   // ── Error ──────────────────────────────────────────────────────────────────
   if (connectError || !streamChannel) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
           <Text style={styles.errorLabel}>⚠️ Connection Failed</Text>
           <Text style={styles.errorText}>
@@ -648,7 +593,7 @@ export default function EventChatScreen() {
 //   iOS: Stream KCV enabled. keyboardVerticalOffset = header area above chat.
 
 return (
-    <View style={[styles.container, { backgroundColor: Colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
 
         {/* ─── Zone A: Fixed Top ────────────────────────────────────────── */}
         <View style={{ paddingTop: insets.top }}>
@@ -725,7 +670,7 @@ return (
                   disabled={isJoining}
                 >
                   {isJoining
-                    ? <ActivityIndicator size="small" color={Colors.white} />
+                    ? <ActivityIndicator size="small" color={colors.white} />
                     : <Text style={styles.joinButtonText}>Count me in.</Text>
                   }
                 </Pressable>
@@ -737,10 +682,10 @@ return (
         {/* ─── Zone B + C: Chat area (flex: 1) ─────────────────────────── */}
         {/* Stream Channel owns MessageList (Zone B, flex:1) and MessageInput (Zone C, fixed). */}
         <View style={styles.chatContainer}>
-          <Chat client={streamClient} style={getStreamTheme()}>
+          <Chat client={streamClient} style={getStreamTheme(colors)}>
               <Channel
                 channel={streamChannel}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : -50}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : undefined}
                 enableMessageReactions
                 enableMessageReplies
                 MessageHeader={SenderNameHeader}
@@ -766,7 +711,7 @@ return (
                           );
                         }
                       },
-                      titleStyle: { color: Colors.error },
+                      titleStyle: { color: colors.error },
                     },
                   ];
                   return actions;
@@ -781,13 +726,10 @@ return (
           </Chat>
         </View>
 
-        {/* System nav bar spacer — dynamic height from safe area insets */}
-        <View style={{ height: insets.bottom, backgroundColor: Colors.surface }} />
-
         {/* ── Overlays & Modals ── */}
         {isDeleting && (
           <View style={styles.deletingOverlay}>
-            <ActivityIndicator size="large" color={Colors.white} />
+            <ActivityIndicator size="large" color={colors.white} />
             <Text style={styles.deletingText}>Deleting event…</Text>
           </View>
         )}

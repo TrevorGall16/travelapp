@@ -32,7 +32,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useLocationStore } from '../../stores/locationStore';
 import { useMapStore } from '../../stores/mapStore';
 import EventCard from '../../components/map/EventCard';
-import { Colors } from '../../constants/theme';
+import { useAppTheme } from '../../constants/theme';
 import type { DBEvent, Event, EventCategory } from '../../types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
@@ -42,7 +42,7 @@ import {
   type PinProperties,
   type ClusterOutput,
 } from '../../lib/mapGeo';
-import { styles } from '../../styles/mapScreenStyles';
+import { createStyles } from '../../styles/mapScreenStyles';
 import { CATEGORY_EMOJI } from '../../constants/categories';
 import { TAB_CONTENT_HEIGHT } from './_layout';
 
@@ -65,6 +65,8 @@ const FILTER_OPTIONS: { label: string; value: string }[] = [
 export default function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { profile } = useAuthStore();
   const { coordinates, city, setCoordinates, setPermissionStatus, setCity } =
     useLocationStore();
@@ -242,16 +244,20 @@ export default function MapScreen() {
         channelRef.current = null;
       }
 
-      // When the user's city is known, scope the Realtime subscription
-      // server-side so only events in the same city are delivered.
-      // Falls back to unfiltered + client-side radius guard when city is null.
-      const filterClause = userCity ? `city=eq.${userCity}` : undefined;
+      // No city → skip subscription entirely to avoid a global firehose.
+      // The initial RPC fetch still populates pins; Realtime just won't live-update.
+      if (!userCity) {
+        console.warn('[Map] City unknown — skipping Realtime subscription to avoid global firehose.');
+        return;
+      }
+
+      const filterClause = `city=eq.${userCity}`;
 
       const channel = supabase
         .channel('events-map')
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'events', ...(filterClause ? { filter: filterClause } : {}) },
+          { event: 'INSERT', schema: 'public', table: 'events', filter: filterClause },
           (payload) => {
             const row = payload.new as DBEvent;
             if (row.status !== 'active') return;
@@ -269,7 +275,7 @@ export default function MapScreen() {
         )
         .on(
           'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'events', ...(filterClause ? { filter: filterClause } : {}) },
+          { event: 'UPDATE', schema: 'public', table: 'events', filter: filterClause },
           (payload) => {
             const row = payload.new as DBEvent;
             if (row.status === 'expired') {
@@ -282,7 +288,7 @@ export default function MapScreen() {
         )
         .on(
           'postgres_changes',
-          { event: 'DELETE', schema: 'public', table: 'events', ...(filterClause ? { filter: filterClause } : {}) },
+          { event: 'DELETE', schema: 'public', table: 'events', filter: filterClause },
           (payload) => {
             const old = payload.old as { id?: string };
             if (old.id) removeEvent(old.id);
@@ -290,7 +296,7 @@ export default function MapScreen() {
         )
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            console.log('[Map] Realtime subscribed');
+            console.log('[Map] Realtime subscribed (city:', userCity, ')');
           }
         });
 
@@ -595,14 +601,14 @@ const handleMapReady = useCallback(() => {
         );
       })
       .filter(Boolean);
-  }, [clusters, handleClusterPress, handlePinPress]);
+  }, [clusters, handleClusterPress, handlePinPress, styles]);
 
   // ── Loading ───────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
       <View style={styles.centeredFill}>
-        <ActivityIndicator size="large" color={Colors.accent} />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -613,7 +619,7 @@ const handleMapReady = useCallback(() => {
     return (
       <View style={[styles.fill, styles.centeredFill]}>
         <View style={styles.permissionIconWrap}>
-          <MapPin size={36} color={Colors.accent} strokeWidth={2} />
+          <MapPin size={36} color={colors.accent} strokeWidth={2} />
         </View>
         <Text style={styles.permissionTitle}>Spot on the map</Text>
         <Text style={styles.permissionText}>
@@ -650,7 +656,46 @@ const handleMapReady = useCallback(() => {
 
   return (
     <View style={styles.fill}>
-      {/* ── MapView: FIRST child, absolute-fill, behind everything ──── */}
+      {/* ── Map Header — above map in normal flow ── */}
+      <View style={[styles.mapHeader, { paddingTop: insets.top }]}>
+        <View style={styles.mapHeaderSpacer} />
+        <Text style={styles.appName}>Globe</Text>
+        <View style={styles.mapHeaderActions}>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/notifications');
+            }}
+          >
+            <Bell size={22} color={colors.textPrimary} strokeWidth={2} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIsListVisible(true);
+            }}
+          >
+            <List size={22} color={colors.textPrimary} strokeWidth={2} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIsFilterModalVisible(true);
+            }}
+          >
+            <SlidersHorizontal
+              size={22}
+              color={activeFilter !== 'all' ? colors.accent : colors.textPrimary}
+              strokeWidth={2}
+            />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* ── MapView: flex child below header ── */}
       <View style={styles.mapContainer}>
         {/* @ts-ignore — Android-only prop suppression */}
         <MapView
@@ -702,45 +747,6 @@ const handleMapReady = useCallback(() => {
         </MapView>
       </View>
 
-      {/* ── Map Header — layered above map ── */}
-      <View style={[styles.mapHeader, { paddingTop: insets.top }]}>
-        <View style={styles.mapHeaderSpacer} />
-        <Text style={styles.appName}>Globe</Text>
-        <View style={styles.mapHeaderActions}>
-          <Pressable
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/notifications');
-            }}
-          >
-            <Bell size={22} color={Colors.textPrimary} strokeWidth={2} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setIsListVisible(true);
-            }}
-          >
-            <List size={22} color={Colors.textPrimary} strokeWidth={2} />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setIsFilterModalVisible(true);
-            }}
-          >
-            <SlidersHorizontal
-              size={22}
-              color={activeFilter !== 'all' ? Colors.accent : Colors.textPrimary}
-              strokeWidth={2}
-            />
-          </Pressable>
-        </View>
-      </View>
-
       {/* Empty state */}
       {visibleEvents.length === 0 && (
         <View style={styles.emptyBanner} pointerEvents="none">
@@ -774,7 +780,7 @@ const handleMapReady = useCallback(() => {
             accessibilityLabel="Recenter map"
             accessibilityRole="button"
           >
-            <LocateFixed color={Colors.textPrimary} size={20} strokeWidth={2} />
+            <LocateFixed color={colors.textPrimary} size={20} strokeWidth={2} />
           </Pressable>
 
           {/* Create event FAB */}
@@ -787,7 +793,7 @@ const handleMapReady = useCallback(() => {
             accessibilityLabel="Create event"
             accessibilityRole="button"
           >
-            <Plus color={Colors.white} size={28} strokeWidth={2.5} />
+            <Plus color={colors.white} size={28} strokeWidth={2.5} />
           </Pressable>
         </>
       )}
@@ -891,7 +897,7 @@ const handleMapReady = useCallback(() => {
                   {option.label}
                 </Text>
                 {isActive && (
-                  <Check size={18} color={Colors.accent} strokeWidth={2.5} />
+                  <Check size={18} color={colors.accent} strokeWidth={2.5} />
                 )}
               </Pressable>
             );

@@ -1,7 +1,9 @@
 // components/chat/MeetupBanner.tsx
 
+import { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { bannerStyles } from '../../styles/eventChatStyles';
+import { useAppTheme } from '../../constants/theme';
+import { createBannerStyles } from '../../styles/eventChatStyles';
 
 export interface MeetupPoint {
   label: string;
@@ -14,6 +16,9 @@ interface MeetupBannerProps {
 }
 
 export function MeetupBanner({ meetupPoint, isHost, onSetMeetupPoint }: MeetupBannerProps) {
+  const { colors } = useAppTheme();
+  const bannerStyles = useMemo(() => createBannerStyles(colors), [colors]);
+
   return (
     <View style={bannerStyles.container}>
       <Text style={bannerStyles.pin}>📍</Text>

@@ -1,6 +1,6 @@
 // components/chat/MeetupModal.tsx
 
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -11,8 +11,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Colors } from '../../constants/theme';
-import { styles } from '../../styles/eventChatStyles';
+import { useAppTheme } from '../../constants/theme';
+import { createStyles } from '../../styles/eventChatStyles';
 
 interface MeetupModalProps {
   visible: boolean;
@@ -34,6 +34,8 @@ export function MeetupModal({
   insetsBottom,
 }: MeetupModalProps) {
   const inputRef = useRef<TextInput>(null);
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <Modal
@@ -65,7 +67,7 @@ export function MeetupModal({
             value={meetupDraft}
             onChangeText={setMeetupDraft}
             placeholder="e.g. Front entrance of the café"
-            placeholderTextColor={Colors.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             maxLength={100}
           />
           <View style={styles.meetupActions}>

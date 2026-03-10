@@ -9,7 +9,7 @@
 // complete before the parent clears state. pointerEvents="none" is applied
 // when hidden so the map remains fully interactive.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -28,7 +28,8 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import { countdownLabel } from '../../lib/eventFormatters';
-import { styles, SHEET_HEIGHT } from '../../styles/eventCardStyles';
+import { useAppTheme } from '../../constants/theme';
+import { createStyles, SHEET_HEIGHT } from '../../styles/eventCardStyles';
 import type { Event, EventCategory } from '../../types';
 import { CATEGORY_EMOJI } from '../../constants/categories';
 
@@ -56,6 +57,8 @@ interface Props {
 export default function EventCard({ event, onDismiss }: Props) {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   // displayEvent persists the last seen event so the sheet content is still
   // visible while the slide-out animation plays.
@@ -243,27 +246,12 @@ export default function EventCard({ event, onDismiss }: Props) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsJoining(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        Alert.alert('Session Error', 'Please log in again.');
-        return;
-      }
-
-      const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/join-event`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-        },
-        body: JSON.stringify({ event_id: displayEvent.id }),
+      const { data, error: fnError } = await supabase.functions.invoke('join-event', {
+        body: { event_id: displayEvent.id },
       });
+      if (fnError) throw fnError;
 
-      const data = await response.json();
-
-      // Check semantic codes before inspecting response.ok. Some codes (e.g.
-      // EVENT_EXPIRED) arrive as HTTP 200; others (e.g. CHAT_ROOM_MISSING) now
-      // arrive as HTTP 400. Checking codes first handles both cases uniformly.
+      // Check semantic codes returned by the Edge Function.
       if (data?.code === 'EVENT_EXPIRED') {
         Alert.alert('Event Ended', 'This event has already expired.');
         return;
@@ -283,10 +271,6 @@ export default function EventCard({ event, onDismiss }: Props) {
           "This event's chat room hasn't been set up yet. Please wait a moment and try again, or contact the host.",
         );
         return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`SERVER SAID: ${data.error || JSON.stringify(data)}`);
       }
 
       // Success — user is now a member

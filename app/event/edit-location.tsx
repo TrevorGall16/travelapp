@@ -20,7 +20,7 @@ import MapView, {
 
 import { supabase } from '../../lib/supabase';
 import { useMapStore } from '../../stores/mapStore';
-import { Colors } from '../../constants/theme';
+import { useAppTheme } from '../../constants/theme';
 
 export default function EditLocationScreen() {
   const { eventId, lat, lon } = useLocalSearchParams<{
@@ -30,6 +30,7 @@ export default function EditLocationScreen() {
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
   const { updateEvent, events } = useMapStore();
 
   const initialLat = parseFloat(lat ?? '0');
@@ -91,16 +92,16 @@ export default function EditLocationScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
       <View
         style={{
           paddingTop: insets.top + 12,
           paddingBottom: 12,
           paddingHorizontal: 16,
-          backgroundColor: Colors.surface,
+          backgroundColor: colors.surface,
           borderBottomWidth: 1,
-          borderBottomColor: Colors.border,
+          borderBottomColor: colors.border,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -110,9 +111,9 @@ export default function EditLocationScreen() {
           onPress={() => router.back()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Text style={{ color: Colors.textSecondary, fontSize: 16 }}>Cancel</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 16 }}>Cancel</Text>
         </Pressable>
-        <Text style={{ color: Colors.textPrimary, fontSize: 17, fontWeight: '600' }}>
+        <Text style={{ color: colors.textPrimary, fontSize: 17, fontWeight: '600' }}>
           Move Pin
         </Text>
         <Pressable
@@ -121,9 +122,9 @@ export default function EditLocationScreen() {
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
           {isSaving ? (
-            <ActivityIndicator size="small" color={Colors.accent} />
+            <ActivityIndicator size="small" color={colors.accent} />
           ) : (
-            <Text style={{ color: Colors.accent, fontSize: 16, fontWeight: '600' }}>
+            <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '600' }}>
               Save
             </Text>
           )}
@@ -135,10 +136,10 @@ export default function EditLocationScreen() {
         style={{
           paddingHorizontal: 16,
           paddingVertical: 10,
-          backgroundColor: Colors.surface,
+          backgroundColor: colors.surface,
         }}
       >
-        <Text style={{ color: Colors.textSecondary, fontSize: 13, textAlign: 'center' }}>
+        <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: 'center' }}>
           Drag the pin to your exact meetup area
         </Text>
       </View>
@@ -169,13 +170,13 @@ export default function EditLocationScreen() {
           paddingBottom: insets.bottom + 16,
           paddingTop: 12,
           paddingHorizontal: 16,
-          backgroundColor: Colors.surface,
+          backgroundColor: colors.surface,
           borderTopWidth: 1,
-          borderTopColor: Colors.border,
+          borderTopColor: colors.border,
           alignItems: 'center',
         }}
       >
-        <Text style={{ color: Colors.textTertiary, fontSize: 12, fontFamily: 'monospace' }}>
+        <Text style={{ color: colors.textTertiary, fontSize: 12, fontFamily: 'monospace' }}>
           {pinCoords.latitude.toFixed(6)}, {pinCoords.longitude.toFixed(6)}
         </Text>
       </View>

@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { OverlayProvider } from 'stream-chat-expo';
 import type { Subscription } from 'expo-notifications';
-import { Colors, useThemeRefresh } from '../constants/theme';
+import { ThemeProvider, useAppTheme, getStreamTheme } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { streamClient } from '../lib/streamClient';
 import {
@@ -27,6 +27,14 @@ function isProfileComplete(profile: Profile | null): boolean {
 }
 
 export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <RootLayoutInner />
+    </ThemeProvider>
+  );
+}
+
+function RootLayoutInner() {
   const {
     user,
     profile,
@@ -40,9 +48,7 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const notificationListenerRef = useRef<Subscription>();
-
-  // ── Theme reactivity — re-renders this layout when Colors mutates ─────────
-  useThemeRefresh();
+  const { colors } = useAppTheme();
 
   // ── Push notification listeners ────────────────────────────────────────────
   useEffect(() => {
@@ -286,9 +292,9 @@ if (session?.user) {
             causes the "ghost drag handle" bug when the keyboard closes. */}
         <OverlayProvider>
         {!isInitialized ? (
-          <View style={[styles.splash, { backgroundColor: Colors.background }]} />
+          <View style={[styles.splash, { backgroundColor: colors.background }]} />
         ) : (
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background } }}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
             <Stack.Screen name="(auth)" />
             {setupComplete && <Stack.Screen name="(tabs)" />}
             <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
@@ -317,6 +323,5 @@ const styles = StyleSheet.create({
   },
   splash: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
 });

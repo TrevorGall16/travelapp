@@ -6,7 +6,8 @@ import { Animated, Dimensions, ScrollView, StyleSheet, Switch, Text, TouchableOp
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapPin, Compass, Users } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
-import { Colors, Radius, Shadows, Spacing, setColorScheme } from '../../constants/theme';
+import { useAppTheme, Radius, Shadows, Spacing } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { forceGlobalSignOut } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
@@ -20,6 +21,8 @@ const PHOTO_WIDTH = SCREEN_WIDTH - 40; // 20px padding each side
 export default function ProfileScreen() {
   const { profile, user } = useAuthStore();
   const insets = useSafeAreaInsets();
+  const { colors, scheme, toggle } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const country = COUNTRIES.find(c => c.code === profile?.country_code);
 
@@ -80,20 +83,13 @@ export default function ProfileScreen() {
     }, [user]),
   );
 
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const toggleTheme = useCallback(() => {
-    const next = !isDarkMode;
-    setIsDarkMode(next);
-    setColorScheme(next ? 'dark' : 'light');
-  }, [isDarkMode]);
-
   const activitiesCount = profile?.events_hosted_count ?? 0;
   const countriesCount = profile?.visited_countries?.length || 1;
 
   const STATS = [
-    { value: String(activitiesCount), label: 'Activities', icon: Compass, color: Colors.accent },
-    { value: String(connections), label: 'Connections', icon: Users, color: Colors.success },
-    { value: String(countriesCount), label: 'Countries', icon: MapPin, color: Colors.warning },
+    { value: String(activitiesCount), label: 'Activities', icon: Compass, color: colors.accent },
+    { value: String(connections), label: 'Connections', icon: Users, color: colors.success },
+    { value: String(countriesCount), label: 'Countries', icon: MapPin, color: colors.warning },
   ];
 
   const handleLogout = forceGlobalSignOut;
@@ -228,10 +224,10 @@ export default function ProfileScreen() {
         <View style={styles.actionRow}>
           <Text style={styles.actionLabel}>Dark Mode</Text>
           <Switch
-            value={isDarkMode}
-            onValueChange={toggleTheme}
-            trackColor={{ false: Colors.border, true: Colors.accent }}
-            thumbColor={Colors.white}
+            value={scheme === 'dark'}
+            onValueChange={toggle}
+            trackColor={{ false: colors.border, true: colors.accent }}
+            thumbColor={colors.white}
           />
         </View>
       </View>
@@ -258,10 +254,10 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scroll: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   content: {
     paddingHorizontal: Spacing.xl,
@@ -277,17 +273,17 @@ const styles = StyleSheet.create({
   avatarOuter: {
     padding: 3,
     borderRadius: (AVATAR_SIZE + 12) / 2,
-    backgroundColor: Colors.accentGlow,
+    backgroundColor: colors.accentGlow,
   },
   avatarRing: {
     width: AVATAR_SIZE + 6,
     height: AVATAR_SIZE + 6,
     borderRadius: (AVATAR_SIZE + 6) / 2,
     borderWidth: 3,
-    borderColor: Colors.accent,
+    borderColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   avatar: {
     width: AVATAR_SIZE,
@@ -298,19 +294,19 @@ const styles = StyleSheet.create({
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInitial: {
     fontSize: 42,
     fontWeight: '700',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
   displayName: {
     fontSize: 28,
     fontWeight: '800',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.5,
     marginTop: Spacing.sm,
   },
@@ -318,19 +314,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   countryFlag: {
     fontSize: 16,
   },
   countryName: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontWeight: '600',
   },
 
@@ -342,7 +338,7 @@ const styles = StyleSheet.create({
     width: PHOTO_WIDTH,
     height: PHOTO_WIDTH * 0.65,
     borderRadius: Radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
   },
 
   // ── Stats — Premium individual cards ───────────────────────
@@ -353,10 +349,10 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.sm,
     gap: 6,
@@ -373,42 +369,42 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: '800',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.5,
   },
   statLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
 
   // ── About card ────────────────────────────────────────────
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     padding: Spacing.xl,
     gap: Spacing.sm,
   },
   cardTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
     marginBottom: 2,
   },
   bioText: {
     fontSize: 15,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     lineHeight: 24,
   },
   bioPlaceholder: {
     fontSize: 15,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontStyle: 'italic',
     lineHeight: 24,
   },
@@ -423,16 +419,16 @@ const styles = StyleSheet.create({
   },
   igHandle: {
     fontSize: 15,
-    color: Colors.accent,
+    color: colors.accent,
     fontWeight: '600',
   },
 
   // ── Actions ───────────────────────────────────────────────
   actionsCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   actionRow: {
@@ -445,25 +441,25 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   actionChevron: {
     fontSize: 22,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     lineHeight: 24,
   },
   actionDivider: {
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     marginHorizontal: Spacing.xl,
   },
 
   // ── Log Out ───────────────────────────────────────────────
   logoutButton: {
-    backgroundColor: Colors.errorBackground,
+    backgroundColor: colors.errorBackground,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.errorBorder,
+    borderColor: colors.errorBorder,
     paddingVertical: 18,
     alignItems: 'center',
     marginTop: Spacing.sm,
@@ -471,14 +467,14 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.errorLight,
+    color: colors.errorLight,
   },
 
   // ── Developer Reset ───────────────────────────────────────
   devResetButton: {
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderStyle: 'dashed',
     paddingVertical: 14,
     alignItems: 'center',
@@ -486,6 +482,6 @@ const styles = StyleSheet.create({
   devResetText: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
 });

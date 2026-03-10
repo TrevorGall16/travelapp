@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Colors, Radius, Spacing } from '../constants/theme';
+import { useAppTheme, Radius, Spacing } from '../constants/theme';
+import type { ThemeColors } from '../constants/theme';
 
 interface ActionModalProps {
   visible: boolean;
@@ -14,6 +16,8 @@ interface ActionModalProps {
 }
 
 export function ActionModal({ visible, onClose, title, subtitle, actions }: ActionModalProps) {
+  const { colors } = useAppTheme();
+  const s = useMemo(() => createLocalStyles(colors), [colors]);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.overlay}>
@@ -60,6 +64,8 @@ interface ConfirmModalProps {
 }
 
 export function ConfirmModal({ visible, onClose, onConfirm, title, body, confirmLabel = 'Delete' }: ConfirmModalProps) {
+  const { colors } = useAppTheme();
+  const s = useMemo(() => createLocalStyles(colors), [colors]);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.overlay}>
@@ -88,7 +94,7 @@ export function ConfirmModal({ visible, onClose, onConfirm, title, body, confirm
   );
 }
 
-const s = StyleSheet.create({
+const createLocalStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -99,10 +105,10 @@ const s = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xl,
     gap: 4,
@@ -110,20 +116,20 @@ const s = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 4,
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     marginVertical: 8,
   },
   actionBtn: {
@@ -132,20 +138,20 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   actionPressed: {
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: colors.surfaceElevated,
   },
   actionText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   actionDestructive: {
-    color: Colors.error,
+    color: colors.error,
   },
   cancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
   confirmActions: {
     flexDirection: 'row',
@@ -159,20 +165,20 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   confirmCancel: {
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   confirmDelete: {
-    backgroundColor: Colors.error,
+    backgroundColor: colors.error,
   },
   confirmDeletePressed: {
-    backgroundColor: Colors.error,
+    backgroundColor: colors.error,
     opacity: 0.8,
   },
   confirmDeleteText: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.white,
+    color: colors.white,
   },
 });

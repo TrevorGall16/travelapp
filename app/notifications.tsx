@@ -1,7 +1,7 @@
 // app/notifications.tsx — Real-time Notification Hub
 // Types: friend_request (Accept/Ignore), request_accepted, event_invite, system
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -21,7 +21,8 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { acceptConnectionRequest, removeConnection } from '../lib/social';
 import { useAuthStore } from '../stores/authStore';
-import { Colors, Radius, Spacing } from '../constants/theme';
+import { useAppTheme, Radius, Spacing } from '../constants/theme';
+import type { ThemeColors } from '../constants/theme';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,10 +51,180 @@ function relativeTime(date: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+// ── Styles ───────────────────────────────────────────────────────────────────
+
+const createLocalStyles = (colors: ThemeColors) => StyleSheet.create({
+  flex: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  backBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  backLabel: {
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  headerRight: {
+    flex: 1,
+  },
+
+  // List
+  list: {
+    paddingTop: Spacing.sm,
+  },
+
+  // Row
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 14,
+    gap: 14,
+    backgroundColor: colors.background,
+  },
+  rowUnread: {
+    backgroundColor: colors.accentMuted,
+  },
+  rowPressed: {
+    backgroundColor: colors.surface,
+  },
+
+  // Avatar
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.border,
+    flexShrink: 0,
+  },
+  avatarFallback: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  avatarEmoji: { fontSize: 22 },
+
+  // Body
+  body: {
+    flex: 1,
+    gap: 4,
+  },
+  message: {
+    fontSize: 15,
+    color: colors.textPrimary,
+    lineHeight: 22,
+  },
+  time: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    fontWeight: '500',
+  },
+
+  // Action buttons (friend request)
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+  },
+  acceptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.accent,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  acceptBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  ignoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  ignoreBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+
+  // Empty state
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 32,
+    paddingBottom: 48,
+  },
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  emptyBody: {
+    fontSize: 15,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+});
+
 // ── Screen ───────────────────────────────────────────────────────────────────
 
 export default function NotificationsScreen() {
   const { user } = useAuthStore();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createLocalStyles(colors), [colors]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
@@ -237,10 +408,10 @@ export default function NotificationsScreen() {
                 activeOpacity={0.8}
               >
                 {isProcessing ? (
-                  <ActivityIndicator size="small" color={Colors.white} />
+                  <ActivityIndicator size="small" color={colors.white} />
                 ) : (
                   <>
-                    <Check size={14} color={Colors.white} strokeWidth={3} />
+                    <Check size={14} color={colors.white} strokeWidth={3} />
                     <Text style={styles.acceptBtnText}>Accept</Text>
                   </>
                 )}
@@ -252,7 +423,7 @@ export default function NotificationsScreen() {
                 disabled={isProcessing}
                 activeOpacity={0.8}
               >
-                <X size={14} color={Colors.textSecondary} strokeWidth={2.5} />
+                <X size={14} color={colors.textSecondary} strokeWidth={2.5} />
                 <Text style={styles.ignoreBtnText}>Ignore</Text>
               </TouchableOpacity>
             </View>
@@ -268,7 +439,7 @@ export default function NotificationsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+          <ChevronLeft size={20} color={colors.textPrimary} strokeWidth={2.5} />
           <Text style={styles.backLabel}>Map</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
@@ -277,12 +448,12 @@ export default function NotificationsScreen() {
 
       {isLoading ? (
         <View style={styles.emptyState}>
-          <ActivityIndicator size="large" color={Colors.accent} />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : notifications.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.iconWrap}>
-            <Bell size={36} color={Colors.textTertiary} strokeWidth={1.5} />
+            <Bell size={36} color={colors.textTertiary} strokeWidth={1.5} />
           </View>
           <Text style={styles.emptyTitle}>Nothing right now</Text>
           <Text style={styles.emptyBody}>
@@ -301,171 +472,3 @@ export default function NotificationsScreen() {
     </SafeAreaView>
   );
 }
-
-// ── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  backLabel: {
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  headerRight: {
-    flex: 1,
-  },
-
-  // List
-  list: {
-    paddingTop: Spacing.sm,
-  },
-
-  // Row
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 14,
-    gap: 14,
-    backgroundColor: Colors.background,
-  },
-  rowUnread: {
-    backgroundColor: Colors.accentMuted,
-  },
-  rowPressed: {
-    backgroundColor: Colors.surface,
-  },
-
-  // Avatar
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.border,
-    flexShrink: 0,
-  },
-  avatarFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexShrink: 0,
-  },
-  avatarEmoji: { fontSize: 22 },
-
-  // Body
-  body: {
-    flex: 1,
-    gap: 4,
-  },
-  message: {
-    fontSize: 15,
-    color: Colors.textPrimary,
-    lineHeight: 22,
-  },
-  time: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-    fontWeight: '500',
-  },
-
-  // Action buttons (friend request)
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
-  },
-  acceptBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.accent,
-    borderRadius: Radius.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  acceptBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.white,
-  },
-  ignoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  ignoreBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-
-  // Empty state
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 32,
-    paddingBottom: 48,
-  },
-  iconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  emptyBody: {
-    fontSize: 15,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-});

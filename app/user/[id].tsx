@@ -1,7 +1,7 @@
 // app/user/[id].tsx — Public User Profile
 // Navigated to from: EventCard participant strip, Group Chat member directory, etc.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -28,7 +28,8 @@ import {
 } from '../../lib/social';
 import { useAuthStore } from '../../stores/authStore';
 import { COUNTRIES } from '../../constants/countries';
-import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
+import { useAppTheme, Radius, Shadows, Spacing } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
 import type { Profile } from '../../types/index';
 
 const AVATAR_SIZE = 120;
@@ -44,6 +45,8 @@ export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createLocalStyles(colors), [colors]);
   const { user: currentUser, profile: myProfile } = useAuthStore();
 
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -163,14 +166,14 @@ export default function UserProfileScreen() {
       <SafeAreaView style={styles.container}>
         <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-            <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+            <ChevronLeft size={20} color={colors.textPrimary} strokeWidth={2.5} />
             <Text style={styles.backLabel}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Profile</Text>
           <View style={styles.headerRight} />
         </View>
         <View style={styles.centeredFill}>
-          <ActivityIndicator size="large" color={Colors.accent} />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -182,7 +185,7 @@ export default function UserProfileScreen() {
       <SafeAreaView style={styles.container}>
         <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-            <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+            <ChevronLeft size={20} color={colors.textPrimary} strokeWidth={2.5} />
             <Text style={styles.backLabel}>Back</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Profile</Text>
@@ -203,7 +206,7 @@ export default function UserProfileScreen() {
       {/* ── Header ── */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+          <ChevronLeft size={20} color={colors.textPrimary} strokeWidth={2.5} />
           <Text style={styles.backLabel}>Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
@@ -263,10 +266,10 @@ export default function UserProfileScreen() {
                 activeOpacity={0.8}
               >
                 {isOpeningDM ? (
-                  <ActivityIndicator size="small" color={Colors.white} />
+                  <ActivityIndicator size="small" color={colors.white} />
                 ) : (
                   <>
-                    <MessageCircle size={18} color={Colors.white} strokeWidth={2.5} />
+                    <MessageCircle size={18} color={colors.white} strokeWidth={2.5} />
                     <Text style={styles.messageBtnText}>Message</Text>
                   </>
                 )}
@@ -284,7 +287,7 @@ export default function UserProfileScreen() {
                 activeOpacity={0.8}
               >
                 {isConnecting ? (
-                  <ActivityIndicator size="small" color={Colors.white} />
+                  <ActivityIndicator size="small" color={colors.white} />
                 ) : (
                   <Text style={[
                     styles.connectBtnText,
@@ -388,10 +391,10 @@ export default function UserProfileScreen() {
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createLocalStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
 
   // ── Header ────────────────────────────────────────────────────────────────
@@ -400,9 +403,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   backBtn: {
     flex: 1,
@@ -412,13 +415,13 @@ const styles = StyleSheet.create({
   },
   backLabel: {
     fontSize: 15,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   headerTitle: {
     flex: 1,
     fontSize: 17,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   headerRight: {
@@ -440,11 +443,11 @@ const styles = StyleSheet.create({
   notFoundTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   notFoundSub: {
     fontSize: 14,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
 
   // ── Scroll ────────────────────────────────────────────────────────────────
@@ -468,7 +471,7 @@ const styles = StyleSheet.create({
     height: AVATAR_SIZE + AVATAR_RING * 2 + 4,
     borderRadius: (AVATAR_SIZE + AVATAR_RING * 2 + 4) / 2,
     borderWidth: AVATAR_RING,
-    borderColor: Colors.accent,
+    borderColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -481,30 +484,30 @@ const styles = StyleSheet.create({
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInitial: {
     fontSize: 44,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   displayName: {
     fontSize: 26,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: 0.3,
     marginTop: 4,
   },
   countryLine: {
     fontSize: 15,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   verifiedBadge: {
-    backgroundColor: Colors.accentSubtle,
+    backgroundColor: colors.accentSubtle,
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: colors.accent,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
@@ -513,7 +516,7 @@ const styles = StyleSheet.create({
   verifiedText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.accent,
+    color: colors.accent,
   },
 
   // ── Action Row (Connect / Message) ──────────────────────────────────────────
@@ -525,7 +528,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     borderRadius: Radius.md,
     paddingVertical: 14,
     ...Shadows.accentGlow,
@@ -536,57 +539,57 @@ const styles = StyleSheet.create({
   messageBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.white,
+    color: colors.white,
   },
   connectBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     borderRadius: Radius.md,
     paddingVertical: 14,
     ...Shadows.accentGlow,
   },
   connectBtnPending: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   connectBtnAccept: {
-    backgroundColor: Colors.success,
+    backgroundColor: colors.success,
   },
   connectBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.white,
+    color: colors.white,
   },
   connectBtnTextPending: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
 
   // ── Cards ──────────────────────────────────────────────────────────────────
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     padding: 20,
     gap: 12,
   },
   cardTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
   bioText: {
     fontSize: 15,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     lineHeight: 23,
   },
   emptyText: {
     fontSize: 15,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontStyle: 'italic',
   },
   igRow: {
@@ -599,17 +602,17 @@ const styles = StyleSheet.create({
   },
   igHandle: {
     fontSize: 15,
-    color: Colors.accent,
+    color: colors.accent,
     fontWeight: '500',
   },
   statsText: {
     fontSize: 15,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   visitedCount: {
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontWeight: '500',
     marginTop: -4,
   },
@@ -621,9 +624,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   accentTag: {
-    backgroundColor: Colors.accentSubtle,
+    backgroundColor: colors.accentSubtle,
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: colors.accent,
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
@@ -631,12 +634,12 @@ const styles = StyleSheet.create({
   accentTagText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.accent,
+    color: colors.accent,
   },
   neutralTag: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
@@ -644,15 +647,15 @@ const styles = StyleSheet.create({
   neutralTagText: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
   countryTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
@@ -663,21 +666,21 @@ const styles = StyleSheet.create({
   countryTagName: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
 
   // ── Empty state ────────────────────────────────────────────────────────────
   emptyCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     padding: 28,
     alignItems: 'center',
   },
   emptyCardText: {
     fontSize: 14,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textAlign: 'center',
     lineHeight: 22,
   },

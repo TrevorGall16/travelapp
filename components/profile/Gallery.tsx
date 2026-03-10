@@ -1,7 +1,7 @@
 // components/profile/Gallery.tsx
 // Tactile swipeable photo gallery with spring animations and haptic feedback.
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -16,7 +16,8 @@ import {
   GestureDetector,
   GestureHandlerRootView,
 } from 'react-native-gesture-handler';
-import { Colors, Radius } from '../../constants/theme';
+import { useAppTheme, Radius } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const GALLERY_PADDING = 40; // 20px each side
@@ -34,6 +35,8 @@ interface GalleryProps {
 }
 
 export default function Gallery({ photos }: GalleryProps) {
+  const { colors } = useAppTheme();
+  const galleryStyles = useMemo(() => createGalleryStyles(colors), [colors]);
   const [activeIndex, setActiveIndex] = useState(0);
   const translateX = useSharedValue(0);
 
@@ -112,7 +115,7 @@ export default function Gallery({ photos }: GalleryProps) {
   );
 }
 
-const galleryStyles = StyleSheet.create({
+const createGalleryStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     overflow: 'hidden',
     borderRadius: Radius.md,
@@ -128,7 +131,7 @@ const galleryStyles = StyleSheet.create({
     width: IMAGE_WIDTH,
     height: IMAGE_HEIGHT,
     borderRadius: Radius.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
   },
   dots: {
     flexDirection: 'row',
@@ -140,10 +143,10 @@ const galleryStyles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
   },
   dotActive: {
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     width: 20,
   },
 });

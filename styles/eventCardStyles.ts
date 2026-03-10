@@ -1,12 +1,13 @@
 // styles/eventCardStyles.ts — Premium event card bottom sheet
 
 import { Platform, StyleSheet } from 'react-native';
-import { Colors, Radius, Shadows, Spacing } from '../constants/theme';
+import type { ThemeColors } from '../constants/theme';
+import { Radius, Shadows, Spacing } from '../constants/theme';
 
 // Generous height so the spring never shows the sheet background beneath it.
 export const SHEET_HEIGHT = 540;
 
-export const styles = StyleSheet.create({
+export const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // Backdrop
   backdrop: {
     backgroundColor: '#000000',
@@ -23,7 +24,7 @@ export const styles = StyleSheet.create({
     borderTopRightRadius: Radius.xl,
     minHeight: 220,
     borderTopWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     overflow: 'hidden',
     ...Shadows.heavy,
   },
@@ -39,7 +40,7 @@ export const styles = StyleSheet.create({
     width: 40,
     height: 5,
     borderRadius: 3,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     marginBottom: Spacing.lg,
   },
 
@@ -58,7 +59,7 @@ export const styles = StyleSheet.create({
     flex: 1,
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     lineHeight: 28,
     letterSpacing: -0.3,
   },
@@ -82,18 +83,18 @@ export const styles = StyleSheet.create({
   },
   separator: {
     fontSize: 13,
-    color: Colors.border,
+    color: colors.border,
   },
   discoveryLabel: {
     fontSize: 13,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontWeight: '500',
   },
   verifiedOnlyChip: {
     fontSize: 12,
-    color: Colors.accentLight,
+    color: colors.accentLight,
     fontWeight: '600',
-    backgroundColor: Colors.accentMuted,
+    backgroundColor: colors.accentMuted,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: Radius.sm,
@@ -105,27 +106,27 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     borderRadius: Radius.md,
     padding: 14,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   hostRowSkeleton: {
     height: 60,
     borderRadius: Radius.md,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     marginBottom: Spacing.md,
   },
   hostAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
   },
   avatarFallback: {
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: colors.surfaceElevated,
   },
   hostTextBlock: {
     flex: 1,
@@ -133,7 +134,7 @@ export const styles = StyleSheet.create({
   },
   hostedByLabel: {
     fontSize: 11,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -141,21 +142,21 @@ export const styles = StyleSheet.create({
   hostName: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.1,
   },
   verifiedBadge: {
-    backgroundColor: Colors.accentMuted,
+    backgroundColor: colors.accentMuted,
     borderRadius: Radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: Colors.accentGlow,
+    borderColor: colors.accentGlow,
   },
   verifiedBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.accentLight,
+    color: colors.accentLight,
   },
 
   // Participants
@@ -165,12 +166,12 @@ export const styles = StyleSheet.create({
   },
   participantCountText: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   participantCountBold: {
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   avatarScroll: {
     flexDirection: 'row',
@@ -182,24 +183,24 @@ export const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     borderWidth: 2,
-    borderColor: Colors.surface,
+    borderColor: colors.surface,
   },
   overflowBubble: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 2,
-    borderColor: Colors.surface,
+    borderColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
   overflowText: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
   },
 
   // Meetup point — premium nested card
@@ -207,31 +208,31 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     borderRadius: Radius.md,
     padding: 14,
     marginBottom: Spacing.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   meetupPin: { fontSize: 18 },
   meetupLabel: {
     fontSize: 11,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   meetupValue: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontStyle: 'italic',
     marginTop: 2,
   },
 
   // CTA button — premium with accent glow
   joinBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     borderRadius: Radius.md,
     paddingVertical: 16,
     alignItems: 'center',
@@ -248,7 +249,7 @@ export const styles = StyleSheet.create({
   joinBtnText: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.white,
+    color: colors.white,
     letterSpacing: 0.3,
   },
 });

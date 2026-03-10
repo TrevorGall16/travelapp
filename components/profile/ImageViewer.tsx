@@ -2,7 +2,7 @@
 // Full-screen swipeable image viewer modal.
 // Used by profile.tsx and preview.tsx — avatar tap opens at index 0.
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -15,7 +15,8 @@ import {
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
-import { Colors } from '../../constants/theme';
+import { useAppTheme } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -33,6 +34,8 @@ export default function ImageViewer({
   onClose,
 }: ImageViewerProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createLocalStyles(colors), [colors]);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
   const onViewableItemsChanged = useCallback(
@@ -62,7 +65,7 @@ export default function ImageViewer({
           onPress={onClose}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <X size={22} color={Colors.white} strokeWidth={2.5} />
+          <X size={22} color={colors.white} strokeWidth={2.5} />
         </Pressable>
 
         {/* Page counter */}
@@ -103,7 +106,7 @@ export default function ImageViewer({
   );
 }
 
-const styles = StyleSheet.create({
+const createLocalStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.95)',
@@ -130,7 +133,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   counterText: {
-    color: Colors.white,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
   },

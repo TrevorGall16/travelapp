@@ -1,7 +1,7 @@
 // Required install (if not already done):
 // npx expo install @react-native-community/datetimepicker
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -34,8 +34,8 @@ import { useAuthStore } from '../../stores/authStore';
 import { useLocationStore } from '../../stores/locationStore';
 import { useMapStore } from '../../stores/mapStore';
 import { formatExpiry } from '../../lib/eventFormatters';
-import { styles } from '../../styles/createEventStyles';
-import { Colors } from '../../constants/theme';
+import { createStyles } from '../../styles/createEventStyles';
+import { useAppTheme } from '../../constants/theme';
 import type { Event, EventCategory } from '../../types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -80,6 +80,8 @@ type FormValues = z.infer<typeof schema>;
 export default function CreateEventScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, profile } = useAuthStore();
   const { coordinates, city } = useLocationStore();
   const { addEvent } = useMapStore();
@@ -513,9 +515,9 @@ export default function CreateEventScreen() {
                   value={isVerified ? value : false}
                   onValueChange={isVerified ? onChange : undefined}
                   disabled={!isVerified}
-                  trackColor={{ false: Colors.border, true: Colors.accent }}
-                  thumbColor={Colors.white}
-                  ios_backgroundColor={Colors.border}
+                  trackColor={{ false: colors.border, true: colors.accent }}
+                  thumbColor={colors.white}
+                  ios_backgroundColor={colors.border}
                 />
               </View>
             )}

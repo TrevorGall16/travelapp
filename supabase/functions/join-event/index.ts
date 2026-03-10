@@ -1,4 +1,5 @@
 // Supabase Edge Function: join-event
+// Uses the join_event_atomic RPC for race-safe capacity checks.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { StreamChat } from 'npm:stream-chat@8';
 
@@ -8,7 +9,6 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req: Request) => {
-  // 1. CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -21,7 +21,7 @@ Deno.serve(async (req: Request) => {
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // 2. Verify caller JWT
+    // 1. Verify caller JWT
     const authHeader = req.headers.get('Authorization')!;
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(
       authHeader.replace('Bearer ', ''),
@@ -36,67 +36,34 @@ Deno.serve(async (req: Request) => {
 
     const { event_id } = await req.json();
 
-    // 3. Fetch Event
-    const { data: event, error: eventError } = await supabaseAdmin
-      .from('events')
-      .select('status, verified_only')
-      .eq('id', event_id)
-      .single();
+    // 2. Atomic join — SELECT FOR UPDATE prevents race-condition overfill
+    const { data: result, error: rpcError } = await supabaseAdmin.rpc('join_event_atomic', {
+      p_user_id: user.id,
+      p_event_id: event_id,
+    });
 
-    if (eventError || !event) throw new Error('Event not found');
-    if (event.status !== 'active') {
-      return new Response(
-        JSON.stringify({ code: 'EVENT_EXPIRED', error: 'This event has already expired.' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
+    if (rpcError) throw new Error(rpcError.message);
+
+    // If the RPC returned a non-ok result, forward the code to the client
+    if (!result.ok) {
+      return new Response(JSON.stringify({ code: result.code, error: result.error }), {
+        status: result.code === 'NOT_FOUND' ? 404 : 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // 3b. Enforce verified_only gate
-    if (event.verified_only) {
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('verification_status')
-        .eq('id', user.id)
-        .single();
-      if (profile?.verification_status !== 'verified') {
-        return new Response(
-          JSON.stringify({ code: 'VERIFIED_ONLY', error: 'This event is for verified travelers only.' }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
+    // Already a member — skip Stream sync, return early
+    if (result.already_member) {
+      return new Response(JSON.stringify({ success: true, already_member: true }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // 4. Insert Participant (Idempotent)
-    // Track whether we actually inserted a new row — determines whether we need
-    // to roll back on a downstream Stream failure.
-    const { error: insertError } = await supabaseAdmin
-      .from('event_participants')
-      .insert({ event_id, user_id: user.id });
-
-    // 23505 = unique violation → user is already in the table (idempotent skip).
-    // didInsert is false in this case: no new DB row, so no rollback is needed.
-    const didInsert = !insertError;
-    if (insertError && insertError.code !== '23505') throw insertError;
-
-    // ── Helper: undo the DB insert if something downstream fails ──────────────
-    const rollbackInsert = async () => {
-      if (!didInsert) return; // nothing to undo if we didn't insert
-      const { error: rbErr } = await supabaseAdmin
-        .from('event_participants')
-        .delete()
-        .eq('event_id', event_id)
-        .eq('user_id', user.id);
-      if (rbErr) {
-        console.error('[join-event] ROLLBACK FAILED — DB may be inconsistent:', rbErr.message);
-      }
-    };
-
-    // 5. Stream Chat Sync
+    // 3. Stream Chat Sync — only for NEW joins
     const streamServer = StreamChat.getInstance(STREAM_API_KEY, STREAM_SECRET_KEY);
 
-    // Upsert the Stream user BEFORE any channel operations — prevents
-    // "user not found" errors (codes 4/17) when the client hasn't called
-    // connectUser yet or the Stream user was purged.
+    // Upsert the Stream user before channel operations
     const { data: joinerProfile } = await supabaseAdmin
       .from('profiles')
       .select('display_name, avatar_url')
@@ -109,8 +76,7 @@ Deno.serve(async (req: Request) => {
       image: joinerProfile?.avatar_url ?? undefined,
     });
 
-    // Guard: Stream channel may not exist (e.g. after a dev DB wipe, or if
-    // create-event's Stream call failed silently before the rollback path fired).
+    // Guard: verify Stream channel exists
     const existingChannels = await streamServer.queryChannels(
       { type: 'messaging', id: { $eq: `event_${event_id}` } },
       {},
@@ -118,40 +84,45 @@ Deno.serve(async (req: Request) => {
     );
 
     if (existingChannels.length === 0) {
-      // Roll back the DB insert so the user is not stranded in event_participants
-      // with no corresponding Stream membership.
-      await rollbackInsert();
+      // Roll back the DB insert — the RPC already committed, so we need a manual delete
+      await supabaseAdmin
+        .from('event_participants')
+        .delete()
+        .eq('event_id', event_id)
+        .eq('user_id', user.id);
+
       return new Response(
         JSON.stringify({
           code: 'CHAT_ROOM_MISSING',
           error: "This event's chat room is unavailable. Please wait or contact the host.",
         }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    // 6. Add member to the Stream channel — roll back DB on failure
+    // 4. Add member to Stream channel — roll back DB on failure
     try {
       const channel = streamServer.channel('messaging', `event_${event_id}`);
       await channel.addMembers([user.id]);
     } catch (streamErr: any) {
-      console.error('[join-event] addMembers failed — rolling back DB insert:', streamErr);
-      await rollbackInsert();
-      throw streamErr; // re-thrown → caught by outer catch → 400 response
+      console.error('[join-event] addMembers failed — rolling back:', streamErr);
+      await supabaseAdmin
+        .from('event_participants')
+        .delete()
+        .eq('event_id', event_id)
+        .eq('user_id', user.id);
+      throw streamErr;
     }
 
-    return new Response(JSON.stringify({ success: true, already_member: !didInsert }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify({ success: true, already_member: false }), {
       status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

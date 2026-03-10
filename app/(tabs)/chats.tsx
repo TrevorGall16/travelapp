@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,14 +18,14 @@ import type { ChannelPreviewUIComponentProps } from 'stream-chat-expo';
 import { streamClient } from '../../lib/streamClient';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
-import { Colors, Radius, Spacing, getStreamTheme, useThemeRefresh } from '../../constants/theme';
+import { useAppTheme, getStreamTheme, Radius, Spacing } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
 import { purgeGhostChannels } from '../../lib/streamCleanup';
 import { ActionModal } from '../../components/ActionModal';
 
 // ─── Ghost Channel Purge ─────────────────────────────────────────────────────
 // Cross-references Stream channels with Supabase events.
-// Channels whose events are missing/deleted are hidden immediately and
-// cleaned up in the background via Stream's channel.delete().
+// Channels whose events are missing/deleted are hidden immediately from the UI.
 
 async function fetchValidEventIds(userId: string): Promise<Set<string>> {
   try {
@@ -52,14 +52,6 @@ async function fetchValidEventIds(userId: string): Promise<Set<string>> {
   }
 }
 
-function backgroundDeleteChannel(channelId: string) {
-  // Fire-and-forget: remove the ghost channel from Stream
-  const ch = streamClient.channel('messaging', channelId);
-  ch.delete().catch((err) => {
-    console.warn('[GhostPurge] Failed to delete channel:', channelId, err);
-  });
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function relativeTime(date?: string | Date | null): string {
@@ -82,6 +74,8 @@ function EventChannelPreview(
   },
 ) {
   const router = useRouter();
+  const { colors } = useAppTheme();
+  const rowSt = useMemo(() => createRowStyles(colors), [colors]);
   const { channel, latestMessagePreview, unreadCount, validEventIds, onRequestLeave } = props;
 
   const rawId = channel.id ?? '';
@@ -90,8 +84,7 @@ function EventChannelPreview(
 
   // ── Ghost check: only applies to event channels, NOT DMs ──
   if (isEventChannel && validEventIds && validEventIds.size > 0 && !validEventIds.has(eventId)) {
-    // Trigger background cleanup on first render of this ghost
-    backgroundDeleteChannel(rawId);
+    // Hide ghost channels from UI (no background deletion)
     return null;
   }
 
@@ -121,7 +114,7 @@ function EventChannelPreview(
 
   return (
     <Pressable
-      style={({ pressed }) => [rowStyles.row, pressed && rowStyles.rowPressed]}
+      style={({ pressed }) => [rowSt.row, pressed && rowSt.rowPressed]}
       onPress={() => {
         if (isDMChannel) {
           router.push(`/dm/${rawId}`);
@@ -136,21 +129,21 @@ function EventChannelPreview(
     >
       {/* Avatar */}
       {avatarUrl ? (
-        <Image source={{ uri: avatarUrl }} style={rowStyles.avatar} contentFit="cover" />
+        <Image source={{ uri: avatarUrl }} style={rowSt.avatar} contentFit="cover" />
       ) : (
-        <View style={rowStyles.avatarFallback}>
-          <Text style={rowStyles.avatarEmoji}>{isDMChannel ? '👤' : '💬'}</Text>
+        <View style={rowSt.avatarFallback}>
+          <Text style={rowSt.avatarEmoji}>{isDMChannel ? '👤' : '💬'}</Text>
         </View>
       )}
 
       {/* Name + preview */}
-      <View style={rowStyles.body}>
-        <View style={rowStyles.top}>
-          <Text style={rowStyles.name} numberOfLines={1}>{channelName}</Text>
-          {timestamp ? <Text style={rowStyles.time}>{timestamp}</Text> : null}
+      <View style={rowSt.body}>
+        <View style={rowSt.top}>
+          <Text style={rowSt.name} numberOfLines={1}>{channelName}</Text>
+          {timestamp ? <Text style={rowSt.time}>{timestamp}</Text> : null}
         </View>
         <Text
-          style={[rowStyles.preview, hasUnread && rowStyles.previewUnread]}
+          style={[rowSt.preview, hasUnread && rowSt.previewUnread]}
           numberOfLines={1}
         >
           {previewText}
@@ -159,96 +152,20 @@ function EventChannelPreview(
 
       {/* Unread badge */}
       {hasUnread && (
-        <View style={rowStyles.badge}>
-          <Text style={rowStyles.badgeText}>{unreadCount}</Text>
+        <View style={rowSt.badge}>
+          <Text style={rowSt.badgeText}>{unreadCount}</Text>
         </View>
       )}
     </Pressable>
   );
 }
 
-const rowStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 14,
-    gap: 14,
-    backgroundColor: Colors.background,
-  },
-  rowPressed: {
-    backgroundColor: Colors.surface,
-  },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Colors.border,
-    flexShrink: 0,
-  },
-  avatarFallback: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexShrink: 0,
-  },
-  avatarEmoji: { fontSize: 24 },
-  body: { flex: 1, gap: 4 },
-  top: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  name: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    letterSpacing: -0.2,
-  },
-  time: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-    fontWeight: '500',
-    flexShrink: 0,
-  },
-  preview: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    lineHeight: 20,
-  },
-  previewUnread: {
-    color: Colors.textPrimary,
-    fontWeight: '600',
-  },
-  badge: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: Colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    flexShrink: 0,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.white,
-  },
-});
-
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function ChatsScreen() {
   const { user } = useAuthStore();
-  useThemeRefresh();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createScreenStyles(colors), [colors]);
   const [validEventIds, setValidEventIds] = useState<Set<string>>(new Set());
 
   // ── Leave chat modal state ──
@@ -265,22 +182,10 @@ export default function ChatsScreen() {
   const handleLeaveConfirm = useCallback(async () => {
     setActionModalVisible(false);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { Alert.alert('Session Expired'); return; }
-      const res = await fetch(
-        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-          },
-          body: JSON.stringify({ event_id: leaveEventId }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Leave failed.');
+      const { data, error: fnError } = await supabase.functions.invoke('leave-event', {
+        body: { event_id: leaveEventId },
+      });
+      if (fnError) throw fnError;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not leave chat.');
@@ -308,7 +213,7 @@ export default function ChatsScreen() {
           <Text style={styles.screenTitle}>Messages</Text>
         </View>
         <View style={styles.centeredFill}>
-          <ActivityIndicator size="large" color={Colors.accent} />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -331,12 +236,12 @@ export default function ChatsScreen() {
 
   // ── Main ─────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
-      <View style={[styles.header, { borderBottomColor: Colors.border }]}>
-        <Text style={[styles.screenTitle, { color: Colors.textPrimary }]}>Messages</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.screenTitle, { color: colors.textPrimary }]}>Messages</Text>
       </View>
 
-      <Chat client={streamClient} style={getStreamTheme()}>
+      <Chat client={streamClient} style={getStreamTheme(colors)}>
         <ChannelList
           filters={{ members: { $in: [user.id] } }}
           sort={{ last_message_at: -1 }}
@@ -371,24 +276,101 @@ export default function ChatsScreen() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+// ─── Style Factories ──────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createRowStyles = (colors: ThemeColors) => StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 14,
+    gap: 14,
+    backgroundColor: colors.background,
+  },
+  rowPressed: {
+    backgroundColor: colors.surface,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.border,
+    flexShrink: 0,
+  },
+  avatarFallback: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  avatarEmoji: { fontSize: 24 },
+  body: { flex: 1, gap: 4 },
+  top: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  name: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  time: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    fontWeight: '500',
+    flexShrink: 0,
+  },
+  preview: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  previewUnread: {
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  badge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    flexShrink: 0,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.white,
+  },
+});
+
+const createScreenStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   screenTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.5,
   },
   centeredFill: {
@@ -401,12 +383,12 @@ const styles = StyleSheet.create({
   errorLabel: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.error,
+    color: colors.error,
     textAlign: 'center',
   },
   errorText: {
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -422,11 +404,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   emptyBody: {
     fontSize: 15,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textAlign: 'center',
     lineHeight: 24,
   },

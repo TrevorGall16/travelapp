@@ -1,12 +1,13 @@
 // styles/createEventStyles.ts — Premium event creation form styles
 
 import { Platform, StyleSheet } from 'react-native';
-import { Colors, Radius, Shadows, Spacing } from '../constants/theme';
+import type { ThemeColors } from '../constants/theme';
+import { Radius, Shadows, Spacing } from '../constants/theme';
 
-export const styles = StyleSheet.create({
+export const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   flex: {
     flex: 1,
@@ -20,12 +21,12 @@ export const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
     paddingHorizontal: Spacing.xxl,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.2,
   },
   closeBtn: {
@@ -49,29 +50,29 @@ export const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   labelOptional: {
     fontWeight: '400',
     textTransform: 'none',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
 
   // Inputs
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 14,
     fontSize: 16,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   inputError: {
-    borderColor: Colors.error,
+    borderColor: colors.error,
   },
   textArea: {
     minHeight: 88,
@@ -84,14 +85,14 @@ export const styles = StyleSheet.create({
   },
   charCount: {
     fontSize: 12,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
   charCountRight: {
     textAlign: 'right',
   },
   errorText: {
     fontSize: 13,
-    color: Colors.error,
+    color: colors.error,
     fontWeight: '500',
   },
 
@@ -105,59 +106,59 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.md,
     paddingHorizontal: 14,
     paddingVertical: Spacing.sm + 2,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     minWidth: '30%',
   },
   chipSelected: {
-    backgroundColor: Colors.accentGlow,
-    borderColor: Colors.accent,
+    backgroundColor: colors.accentGlow,
+    borderColor: colors.accent,
   },
   chipEmoji: {
     fontSize: 18,
   },
   chipLabel: {
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   chipLabelSelected: {
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontWeight: '600',
   },
 
   // Location picker
   locationHint: {
     fontSize: 13,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     marginTop: -2,
   },
   mapPickerContainer: {
     borderRadius: Radius.md,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   mapPicker: {
     height: 250,
   },
   mapPlaceholder: {
     height: 120,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
   },
   mapPlaceholderText: {
     fontSize: 14,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -166,12 +167,12 @@ export const styles = StyleSheet.create({
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     gap: Spacing.sm + 2,
   },
   dateRowIcon: {
@@ -180,16 +181,16 @@ export const styles = StyleSheet.create({
   dateRowText: {
     flex: 1,
     fontSize: 16,
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     fontWeight: '500',
   },
   dateRowChevron: {
     fontSize: 22,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     lineHeight: 24,
   },
   datePickerDoneBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     borderRadius: Radius.md,
     paddingVertical: Spacing.sm + 2,
     alignItems: 'center',
@@ -197,7 +198,7 @@ export const styles = StyleSheet.create({
     ...Shadows.accentGlow,
   },
   datePickerDoneBtnText: {
-    color: Colors.white,
+    color: colors.white,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -206,12 +207,12 @@ export const styles = StyleSheet.create({
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     gap: Spacing.md,
   },
   toggleRowDisabled: {
@@ -224,17 +225,17 @@ export const styles = StyleSheet.create({
   toggleTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
   },
   toggleSubtitle: {
     fontSize: 13,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     lineHeight: 18,
   },
 
   // Publish button — premium CTA
   publishBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     borderRadius: Radius.lg,
     height: 56,
     alignItems: 'center',
@@ -252,7 +253,7 @@ export const styles = StyleSheet.create({
   publishBtnText: {
     fontSize: 17,
     fontWeight: '700',
-    color: Colors.white,
+    color: colors.white,
     letterSpacing: 0.3,
   },
 
@@ -261,18 +262,18 @@ export const styles = StyleSheet.create({
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 48 : 32,
     alignSelf: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: Radius.xl,
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     ...Shadows.medium,
   },
   toastText: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     textAlign: 'center',
   },
 });

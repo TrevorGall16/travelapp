@@ -2,7 +2,7 @@
 // npx expo install expo-image expo-image-picker expo-file-system
 // npm install react-hook-form @hookform/resolvers zod base64-arraybuffer
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,11 +22,11 @@ import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { CountryPicker } from '../../components/auth/CountryPicker';
 import { COUNTRIES } from '../../constants/countries';
-import { Colors } from '../../constants/theme';
+import { useAppTheme } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { uploadAvatar } from '../../lib/uploadAvatar';
 import { useAuthStore } from '../../stores/authStore';
-import { styles } from '../../styles/setupStyles';
+import { createStyles } from '../../styles/setupStyles';
 import type { Country } from '../../types';
 
 // ── Zod schemas ──────────────────────────────────────────────────────────────
@@ -63,6 +63,8 @@ type Step2Values = z.infer<typeof step2Schema>;
 export default function SetupScreen() {
   const { user, setProfile } = useAuthStore();
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [step, setStep] = useState<1 | 2>(1);
   const [step1Data, setStep1Data] = useState<Step1Values | null>(null);
@@ -247,7 +249,7 @@ export default function SetupScreen() {
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   {isPickingImage ? (
-                    <ActivityIndicator color={Colors.accent} />
+                    <ActivityIndicator color={colors.accent} />
                   ) : (
                     <>
                       <Text style={styles.avatarPlaceholderIcon}>📷</Text>
@@ -277,7 +279,7 @@ export default function SetupScreen() {
                   <TextInput
                     style={[styles.input, errors1.display_name && styles.inputError]}
                     placeholder="e.g. Alex"
-                    placeholderTextColor={Colors.textTertiary}
+                    placeholderTextColor={colors.textTertiary}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -354,7 +356,7 @@ export default function SetupScreen() {
                   <TextInput
                     style={[styles.input, styles.textArea]}
                     placeholder="Tell travelers a bit about yourself..."
-                    placeholderTextColor={Colors.textTertiary}
+                    placeholderTextColor={colors.textTertiary}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -382,7 +384,7 @@ export default function SetupScreen() {
                     <TextInput
                       style={[styles.input, styles.igInput]}
                       placeholder="yourusername"
-                      placeholderTextColor={Colors.textTertiary}
+                      placeholderTextColor={colors.textTertiary}
                       // Auto-strip the @ if the user types it
                       value={value?.replace(/^@/, '')}
                       onChangeText={(text) => onChange(text.replace(/^@/, ''))}
@@ -404,7 +406,7 @@ export default function SetupScreen() {
               activeOpacity={0.8}
             >
               {isSubmitting ? (
-                <ActivityIndicator color={Colors.white} />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={styles.primaryButtonText}>Done ✓</Text>
               )}

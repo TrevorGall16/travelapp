@@ -2,7 +2,7 @@
 // Navigated to from: user/[id].tsx "Message" button.
 // Channel ID format: dm_{sortedUserId1}_{sortedUserId2}
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -24,15 +24,16 @@ import type { Channel as StreamChannel } from 'stream-chat';
 
 import { streamClient } from '../../lib/streamClient';
 import { useBlockedUsers } from '../../hooks/useBlockedUsers';
-import { Colors, getStreamTheme, useThemeRefresh } from '../../constants/theme';
-import { styles } from '../../styles/eventChatStyles';
+import { useAppTheme, getStreamTheme } from '../../constants/theme';
+import { createStyles } from '../../styles/eventChatStyles';
 import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
 
 export default function DMChatScreen() {
   const { id: channelId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  useThemeRefresh();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [channel, setChannel] = useState<StreamChannel | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
@@ -103,9 +104,9 @@ export default function DMChatScreen() {
 
   if (isConnecting) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
-          <ActivityIndicator size="large" color={Colors.accent} />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Opening chat...</Text>
         </View>
       </View>
@@ -114,7 +115,7 @@ export default function DMChatScreen() {
 
   if (error || !channel) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
         <View style={styles.centeredFill}>
           <Text style={styles.errorLabel}>Connection Failed</Text>
           <Text style={styles.errorText}>{error ?? 'Could not load chat.'}</Text>
@@ -128,7 +129,7 @@ export default function DMChatScreen() {
 
   // Rigid Container: Zone A (header) + Zone B+C (chat) + baseline spacer.
   return (
-    <View style={[styles.container, { backgroundColor: Colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
 
       {/* ─── Zone A: Fixed Top ───────────────────────────────────────── */}
       <View style={{ paddingTop: insets.top }}>
@@ -152,10 +153,10 @@ export default function DMChatScreen() {
 
       {/* ─── Zone B + C: Chat area ───────────────────────────────────── */}
       <View style={styles.chatContainer}>
-        <Chat client={streamClient} style={getStreamTheme()}>
+        <Chat client={streamClient} style={getStreamTheme(colors)}>
           <Channel
             channel={channel}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : -50}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : undefined}
             MessageSimple={BlockFilteredMessage}
             InputButtons={ChatInputButtons}
             hasImagePicker
@@ -169,8 +170,6 @@ export default function DMChatScreen() {
         </Chat>
       </View>
 
-      {/* System nav bar spacer — dynamic height from safe area insets */}
-      <View style={{ height: insets.bottom, backgroundColor: Colors.surface }} />
     </View>
   );
 }

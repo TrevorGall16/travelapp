@@ -22,7 +22,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 import type { Event, EventCategory } from '../../types';
 import { CATEGORY_EMOJI } from '../../constants/categories';
-import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
+import { useAppTheme, Radius, Shadows, Spacing } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
 import { ActionModal, ConfirmModal } from '../../components/ActionModal';
 import EventCard from '../../components/map/EventCard';
 
@@ -52,14 +53,14 @@ interface EventRow {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function countdownInfo(expiresAt: string): { label: string; color: string } {
+function countdownInfo(expiresAt: string, colors: ThemeColors): { label: string; color: string } {
   const mins = differenceInMinutes(new Date(expiresAt), new Date());
-  if (mins <= 0) return { label: 'Ended', color: Colors.textTertiary };
-  if (mins < 60) return { label: `${mins}m left`, color: Colors.error };
+  if (mins <= 0) return { label: 'Ended', color: colors.textTertiary };
+  if (mins < 60) return { label: `${mins}m left`, color: colors.error };
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  if (h < 3) return { label: m ? `${h}h ${m}m left` : `${h}h left`, color: Colors.warning };
-  return { label: `${h}h left`, color: Colors.success };
+  if (h < 3) return { label: m ? `${h}h ${m}m left` : `${h}h left`, color: colors.warning };
+  return { label: `${h}h left`, color: colors.success };
 }
 
 // ─── Event Row ────────────────────────────────────────────────────────────────
@@ -69,13 +70,17 @@ function EventRowItem({
   currentUserId,
   onPress,
   onLongPress,
+  colors,
+  styles,
 }: {
   item: EventRow;
   currentUserId: string;
   onPress: (item: EventRow) => void;
   onLongPress: (item: EventRow, isHost: boolean) => void;
+  colors: ThemeColors;
+  styles: ReturnType<typeof createStyles>;
 }) {
-  const countdown = countdownInfo(item.expires_at);
+  const countdown = countdownInfo(item.expires_at, colors);
   const isHost = item.host_id === currentUserId;
   const isExpired = item.status === 'expired';
 
@@ -141,6 +146,8 @@ function EventRowItem({
 
 export default function MyEventsScreen() {
   const { user } = useAuthStore();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -395,7 +402,7 @@ export default function MyEventsScreen() {
           <Text style={styles.screenTitle}>My Events</Text>
         </View>
         <View style={styles.centeredFill}>
-          <ActivityIndicator size="large" color={Colors.accent} />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -433,7 +440,7 @@ export default function MyEventsScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <EventRowItem item={item} currentUserId={user?.id ?? ''} onPress={handleRowPress} onLongPress={handleLongPress} />
+          <EventRowItem item={item} currentUserId={user?.id ?? ''} onPress={handleRowPress} onLongPress={handleLongPress} colors={colors} styles={styles} />
         )}
         renderSectionHeader={({ section: { title } }) => (
           <Pressable
@@ -455,8 +462,8 @@ export default function MyEventsScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.accent}
-            colors={[Colors.accent]}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
           />
         }
         contentContainerStyle={styles.listContent}
@@ -494,10 +501,10 @@ export default function MyEventsScreen() {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
 
   // Header
@@ -506,12 +513,12 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   screenTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.5,
   },
 
@@ -536,13 +543,13 @@ const styles = StyleSheet.create({
   sectionHeaderText: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     letterSpacing: 1.2,
   },
   sectionChevron: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
 
   // List
@@ -551,7 +558,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.borderSubtle,
+    backgroundColor: colors.borderSubtle,
     marginLeft: 80,
   },
 
@@ -564,18 +571,18 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   rowPressed: {
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
   },
   emojiCircle: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.surface,
+    backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
   },
   emojiCircleDim: {
     opacity: 0.4,
@@ -597,11 +604,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     letterSpacing: -0.2,
   },
   titleDim: {
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
   },
   countdownLabel: {
     fontSize: 12,
@@ -617,22 +624,22 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
   },
   hostAvatarFallback: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
   },
   hostName: {
     fontSize: 13,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     flexShrink: 1,
     fontWeight: '500',
   },
   hostBadge: {
-    backgroundColor: Colors.accentMuted,
+    backgroundColor: colors.accentMuted,
     borderRadius: Radius.sm,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -640,17 +647,17 @@ const styles = StyleSheet.create({
   hostBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: Colors.accent,
+    color: colors.accent,
     letterSpacing: 0.3,
   },
   participantCount: {
     fontSize: 12,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     fontWeight: '500',
   },
   chevron: {
     fontSize: 22,
-    color: Colors.border,
+    color: colors.border,
     lineHeight: 26,
   },
   chevronDim: {
@@ -664,12 +671,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: colors.textPrimary,
     marginTop: 4,
   },
   emptyBody: {
     fontSize: 15,
-    color: Colors.textTertiary,
+    color: colors.textTertiary,
     textAlign: 'center',
     lineHeight: 24,
   },

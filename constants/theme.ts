@@ -1,8 +1,11 @@
 /**
  * Global design tokens for NomadMeet.
- * All component files must import colours from here.
+ * All component files must import colours via useAppTheme().
  * No raw hex codes are permitted inside component or screen files.
  */
+
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { Platform } from 'react-native';
 
 // ─── Spacing Scale ───────────────────────────────────────────────────────────
 export const Spacing = {
@@ -104,56 +107,52 @@ export const LightColors = {
   modalBackdrop: 'rgba(0,0,0,0.5)',
 } as const;
 
+/** The type shared by both palettes. */
+export type ThemeColors = typeof DarkColors;
+
 /** Returns the palette for a given color scheme. */
-export function getColors(scheme: 'light' | 'dark'): typeof DarkColors {
+export function getColors(scheme: 'light' | 'dark'): ThemeColors {
   return scheme === 'light' ? LightColors : DarkColors;
 }
 
-// ── Active Colors export — defaults to dark, updated at runtime by root layout.
-// All existing StyleSheet.create calls reference this object.
-// When light mode is enabled, root layout calls `setColorScheme('light')` which
-// mutates these values in-place so static stylesheets pick them up on next render.
-export const Colors: Record<keyof typeof DarkColors, string> = { ...DarkColors };
+// ─── Theme Context ───────────────────────────────────────────────────────────
 
-// ── Theme change listener — allows React components to re-render on switch ──
-let _currentScheme: 'light' | 'dark' = 'dark';
-let _listeners: Array<() => void> = [];
-
-export function getCurrentScheme(): 'light' | 'dark' { return _currentScheme; }
-
-/** Subscribe to theme changes. Returns an unsubscribe function. */
-export function onThemeChange(cb: () => void): () => void {
-  _listeners.push(cb);
-  return () => { _listeners = _listeners.filter(l => l !== cb); };
+interface ThemeContextValue {
+  colors: ThemeColors;
+  scheme: 'light' | 'dark';
+  toggle: () => void;
+  setScheme: (s: 'light' | 'dark') => void;
 }
 
-/** Switch the active palette at runtime. Mutates Colors + notifies listeners. */
-export function setColorScheme(scheme: 'light' | 'dark') {
-  if (scheme === _currentScheme) return;
-  _currentScheme = scheme;
-  const palette = getColors(scheme);
-  for (const key of Object.keys(palette) as Array<keyof typeof DarkColors>) {
-    (Colors as Record<string, string>)[key] = palette[key];
-  }
-  _listeners.forEach(cb => cb());
+const ThemeContext = createContext<ThemeContextValue>({
+  colors: DarkColors,
+  scheme: 'dark',
+  toggle: () => {},
+  setScheme: () => {},
+});
+
+/** Wrap the app root with this provider. */
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [scheme, setScheme] = useState<'light' | 'dark'>('dark');
+  const colors = scheme === 'dark' ? DarkColors : LightColors;
+  const toggle = useCallback(
+    () => setScheme(s => (s === 'dark' ? 'light' : 'dark')),
+    [],
+  );
+  const value = useMemo(
+    () => ({ colors, scheme, toggle, setScheme }),
+    [scheme, colors, toggle],
+  );
+  return React.createElement(ThemeContext.Provider, { value }, children);
 }
 
-export type ColorKey = keyof typeof DarkColors;
-
-// ── React hook — forces a re-render when the theme changes ──────────────────
-import { useState, useEffect } from 'react';
-
-/** Returns the current scheme and re-renders the component when it changes.
- *  Use this in root layout and key screens to react to theme switches. */
-export function useThemeRefresh(): 'light' | 'dark' {
-  const [scheme, setScheme] = useState(_currentScheme);
-  useEffect(() => onThemeChange(() => setScheme(_currentScheme)), []);
-  return scheme;
+/** Returns the current theme colors + scheme. Re-renders on theme change. */
+export function useAppTheme() {
+  return useContext(ThemeContext);
 }
 
 // ─── Shadow Presets ──────────────────────────────────────────────────────────
 // Platform-aware shadow helpers for consistent elevation.
-import { Platform } from 'react-native';
 
 export const Shadows = {
   /** Subtle card shadow */
@@ -198,84 +197,80 @@ export const Shadows = {
   }),
 } as const;
 
-// ─── Stream Chat Theme (unified) ─────────────────────────────────────────────
-// Returns a fresh theme object that reads from the (possibly mutated) Colors.
-// Must be called at render time, not at module level, to pick up theme switches.
+// ─── Stream Chat Theme ───────────────────────────────────────────────────────
+// Accepts a colors object so it re-evaluates on theme switch.
 
-export function getStreamTheme() { return {
-  colors: {
-    white: Colors.surface,
-    white_snow: Colors.background,
-    bg_gradient_start: Colors.background,
-    bg_gradient_end: Colors.background,
-    grey_gainsboro: Colors.border,
-    grey_whisper: Colors.surface,
-    grey: Colors.textSecondary,
-    grey_dark: Colors.textSecondary,
-    black: Colors.textPrimary,
-    blue_alice: Colors.accent,
-    accent_blue: Colors.accent,
-    targetedMessageBackground: Colors.border,
-  },
-  messageSimple: {
-    content: {
-      markdown: {
-        text: { color: Colors.textPrimary },
-        em: { color: Colors.textPrimary },
-        strong: { color: Colors.textPrimary },
-        link: { color: Colors.accent },
+export function getStreamTheme(colors: ThemeColors) {
+  return {
+    colors: {
+      white: colors.surface,
+      white_snow: colors.background,
+      bg_gradient_start: colors.background,
+      bg_gradient_end: colors.background,
+      grey_gainsboro: colors.border,
+      grey_whisper: colors.surface,
+      grey: colors.textSecondary,
+      grey_dark: colors.textSecondary,
+      black: colors.textPrimary,
+      blue_alice: colors.accent,
+      accent_blue: colors.accent,
+      targetedMessageBackground: colors.border,
+    },
+    messageSimple: {
+      content: {
+        markdown: {
+          text: { color: colors.textPrimary },
+          em: { color: colors.textPrimary },
+          strong: { color: colors.textPrimary },
+          link: { color: colors.accent },
+        },
+        containerInner: {
+          backgroundColor: colors.surface,
+        },
       },
-      containerInner: {
-        backgroundColor: Colors.surface,
+    },
+    dateHeader: {
+      text: { color: colors.textSecondary },
+    },
+    inlineDateSeparator: {
+      text: { color: colors.textSecondary },
+    },
+    messageInput: {
+      container: {
+        backgroundColor: colors.surface,
+        borderTopColor: colors.border,
+        borderTopWidth: 1,
+        paddingHorizontal: 8,
+        paddingVertical: 0,
+        paddingBottom: 0,
+        paddingTop: 0,
+        marginBottom: 0,
+        marginTop: 0,
+      },
+      inputBoxContainer: {
+        backgroundColor: colors.background,
+        borderColor: colors.border,
+        borderWidth: 1,
+        borderRadius: 20,
+        paddingHorizontal: 12,
+      },
+      inputBox: {
+        color: colors.textPrimary,
+        fontSize: 15,
+      },
+      sendButton: {
+        backgroundColor: colors.accent,
+        borderRadius: 20,
+        width: 34,
+        height: 34,
+        justifyContent: 'center' as const,
+        alignItems: 'center' as const,
+      },
+      sendButtonContainer: {
+        justifyContent: 'center' as const,
+        alignItems: 'center' as const,
+        paddingLeft: 8,
       },
     },
-  },
-
-  dateHeader: {
-    text: { color: '#E0E0E0' },
-  },
-  inlineDateSeparator: {
-    text: { color: '#E0E0E0' },
-  },
-  messageInput: {
-    container: {
-      backgroundColor: Colors.surface,
-      borderTopColor: Colors.border,
-      borderTopWidth: 1,
-      paddingHorizontal: 8,
-      // ── Nuclear Zero: no internal spacing that can drift on keyboard dismiss ──
-      paddingVertical: 0,
-      paddingBottom: 0,
-      paddingTop: 0,
-      marginBottom: 0,
-      marginTop: 0,
-    },
-    inputBoxContainer: {
-      backgroundColor: Colors.background,
-      borderColor: Colors.border,
-      borderWidth: 1,
-      borderRadius: 20,
-      paddingHorizontal: 12,
-    },
-    inputBox: {
-      color: Colors.textPrimary,
-      fontSize: 15,
-    },
-    sendButton: {
-      backgroundColor: Colors.accent,
-      borderRadius: 20,
-      width: 34,
-      height: 34,
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
-    },
-    sendButtonContainer: {
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
-      paddingLeft: 8,
-    },
-  },
-}; }
-
-/** @deprecated Use getStreamTheme() instead for theme reactivity. */
-export const STREAM_THEME = getStreamTheme();
+  };
+}

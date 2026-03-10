@@ -1,8 +1,10 @@
 import { router } from 'expo-router';
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { Colors } from '../../constants/theme';
+import { useAppTheme } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
 
 const MENU_ITEMS = [
   { label: 'Contact Us', route: '/profile/contact' },
@@ -10,13 +12,117 @@ const MENU_ITEMS = [
   { label: 'Terms of Service', route: '/profile/terms' },
 ] as const;
 
+const createLocalStyles = (colors: ThemeColors) => StyleSheet.create({
+  flex: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  // ── Header ──────────────────────────────────────────────────
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  backBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  backLabel: {
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  headerRight: {
+    flex: 1,
+  },
+
+  // ── Scroll ──────────────────────────────────────────────────
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 20,
+    gap: 32,
+  },
+
+  // ── Menu card ────────────────────────────────────────────────
+  menuCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+  },
+  menuLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.textPrimary,
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginHorizontal: 20,
+  },
+
+  // ── Danger Zone ──────────────────────────────────────────────
+  dangerSection: {
+    gap: 12,
+  },
+  dangerSectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  deleteButton: {
+    backgroundColor: colors.errorBackground,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.errorBorder,
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  deleteText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.errorLight,
+  },
+});
+
 export default function SettingsScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createLocalStyles(colors), [colors]);
+
   return (
     <SafeAreaView style={styles.flex}>
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+          <ChevronLeft size={20} color={colors.textPrimary} strokeWidth={2.5} />
           <Text style={styles.backLabel}>Profile</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
@@ -39,7 +145,7 @@ export default function SettingsScreen() {
               activeOpacity={0.7}
             >
               <Text style={styles.menuLabel}>{item.label}</Text>
-              <ChevronRight size={18} color={Colors.textTertiary} strokeWidth={2} />
+              <ChevronRight size={18} color={colors.textTertiary} strokeWidth={2} />
             </TouchableOpacity>,
           ])}
         </View>
@@ -59,104 +165,3 @@ export default function SettingsScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-
-  // ── Header ──────────────────────────────────────────────────
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  backLabel: {
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  headerRight: {
-    flex: 1,
-  },
-
-  // ── Scroll ──────────────────────────────────────────────────
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 20,
-    gap: 32,
-  },
-
-  // ── Menu card ────────────────────────────────────────────────
-  menuCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-  },
-  menuRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-  },
-  menuLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.textPrimary,
-  },
-  menuDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.border,
-    marginHorizontal: 20,
-  },
-
-  // ── Danger Zone ──────────────────────────────────────────────
-  dangerSection: {
-    gap: 12,
-  },
-  dangerSectionLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  deleteButton: {
-    backgroundColor: Colors.errorBackground,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.errorBorder,
-    paddingVertical: 18,
-    alignItems: 'center',
-  },
-  deleteText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.errorLight,
-  },
-});

@@ -1,16 +1,122 @@
 import { router } from 'expo-router';
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
-import { Colors } from '../../constants/theme';
+import { useAppTheme } from '../../constants/theme';
+import type { ThemeColors } from '../../constants/theme';
+
+const createLocalStyles = (colors: ThemeColors) => StyleSheet.create({
+  flex: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  // ── Header ──────────────────────────────────────────────────
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  backBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  backLabel: {
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  headerRight: {
+    flex: 1,
+  },
+
+  // ── Scroll ──────────────────────────────────────────────────
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 20,
+    gap: 16,
+  },
+
+  // ── Cards ────────────────────────────────────────────────────
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 20,
+    gap: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  bodyText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    lineHeight: 23,
+  },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  emailLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  emailAddress: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.accent,
+  },
+
+  // ── Footnote ─────────────────────────────────────────────────
+  footnote: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 8,
+    marginTop: 8,
+  },
+});
 
 export default function ContactScreen() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createLocalStyles(colors), [colors]);
+
   return (
     <SafeAreaView style={styles.flex}>
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <ChevronLeft size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+          <ChevronLeft size={20} color={colors.textPrimary} strokeWidth={2.5} />
           <Text style={styles.backLabel}>Settings</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Contact Us</Text>
@@ -57,104 +163,3 @@ export default function ContactScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-
-  // ── Header ──────────────────────────────────────────────────
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 14,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  backLabel: {
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  headerRight: {
-    flex: 1,
-  },
-
-  // ── Scroll ──────────────────────────────────────────────────
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 20,
-    gap: 16,
-  },
-
-  // ── Cards ────────────────────────────────────────────────────
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 20,
-    gap: 12,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  bodyText: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-    lineHeight: 23,
-  },
-  emailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 4,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
-  },
-  emailLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  emailAddress: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.accent,
-  },
-
-  // ── Footnote ─────────────────────────────────────────────────
-  footnote: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 8,
-    marginTop: 8,
-  },
-});
