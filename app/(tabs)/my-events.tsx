@@ -70,16 +70,14 @@ function EventRowItem({
   currentUserId,
   onPress,
   onLongPress,
-  colors,
-  styles,
 }: {
   item: EventRow;
   currentUserId: string;
   onPress: (item: EventRow) => void;
   onLongPress: (item: EventRow, isHost: boolean) => void;
-  colors: ThemeColors;
-  styles: ReturnType<typeof createStyles>;
 }) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const countdown = countdownInfo(item.expires_at, colors);
   const isHost = item.host_id === currentUserId;
   const isExpired = item.status === 'expired';
@@ -322,22 +320,11 @@ export default function MyEventsScreen() {
       // Participant leave → execute immediately
       (async () => {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) { Alert.alert('Session Expired'); return; }
-          const res = await fetch(
-            `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/leave-event`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-                'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-              },
-              body: JSON.stringify({ event_id: selectedItem?.id }),
-            },
-          );
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Leave failed.');
+          const { data, error: fnError } = await supabase.functions.invoke('leave-event', {
+            body: { event_id: selectedItem?.id },
+          });
+          if (fnError) throw fnError;
+          if (data?.error) throw new Error(data.error);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           fetchMyEvents();
         } catch (err) {
@@ -350,22 +337,11 @@ export default function MyEventsScreen() {
   const handleConfirmDelete = useCallback(async () => {
     setConfirmModalVisible(false);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { Alert.alert('Session Expired'); return; }
-      const res = await fetch(
-        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/delete-event`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-          },
-          body: JSON.stringify({ event_id: selectedItem?.id }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Delete failed.');
+      const { data, error: fnError } = await supabase.functions.invoke('delete-event', {
+        body: { event_id: selectedItem?.id },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       fetchMyEvents();
     } catch (err) {
@@ -440,7 +416,7 @@ export default function MyEventsScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <EventRowItem item={item} currentUserId={user?.id ?? ''} onPress={handleRowPress} onLongPress={handleLongPress} colors={colors} styles={styles} />
+          <EventRowItem item={item} currentUserId={user?.id ?? ''} onPress={handleRowPress} onLongPress={handleLongPress} />
         )}
         renderSectionHeader={({ section: { title } }) => (
           <Pressable

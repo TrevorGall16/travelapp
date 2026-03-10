@@ -12,6 +12,10 @@ export const createStyles = (colors: ThemeColors) => StyleSheet.create({
 
   // Map header bar
   mapHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
@@ -19,7 +23,6 @@ export const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
-    zIndex: 20,
   },
   mapHeaderSpacer: {
     flex: 1,
