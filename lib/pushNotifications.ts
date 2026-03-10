@@ -54,29 +54,33 @@ export async function registerForPushNotifications(
     });
   }
 
-  // Get token
-  try {
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
-    });
-    const token = tokenData.data;
-    console.log('[Push] Token:', token);
-
-    // Persist to profile row (fire-and-forget — non-blocking)
-    supabase
-      .from('profiles')
-      .update({ push_token: token })
-      .eq('id', userId)
-      .then(({ error }) => {
-        if (error) console.warn('[Push] Failed to save token:', error.message);
-        else console.log('[Push] Token saved to profile');
-      });
-
-    return token;
-  } catch (err) {
-    console.error('[Push] getExpoPushTokenAsync failed:', err);
-    return null;
-  }
+  // TODO: Re-enable once Firebase credentials are configured in EAS.
+  // getExpoPushTokenAsync requires a valid Firebase sender ID / APNs key,
+  // which aren't set up yet. Commented out to silence log spam.
+  //
+  // try {
+  //   const tokenData = await Notifications.getExpoPushTokenAsync({
+  //     projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
+  //   });
+  //   const token = tokenData.data;
+  //   console.log('[Push] Token:', token);
+  //
+  //   supabase
+  //     .from('profiles')
+  //     .update({ push_token: token })
+  //     .eq('id', userId)
+  //     .then(({ error }) => {
+  //       if (error) console.warn('[Push] Failed to save token:', error.message);
+  //       else console.log('[Push] Token saved to profile');
+  //     });
+  //
+  //   return token;
+  // } catch (err) {
+  //   console.error('[Push] getExpoPushTokenAsync failed:', err);
+  //   return null;
+  // }
+  console.log('[Push] Token registration skipped — Firebase credentials not configured');
+  return null;
 }
 
 // ── Clear push token on sign-out ─────────────────────────────────────────────

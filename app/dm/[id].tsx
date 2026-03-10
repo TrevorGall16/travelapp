@@ -25,7 +25,6 @@ import type { Channel as StreamChannel } from 'stream-chat';
 import { streamClient } from '../../lib/streamClient';
 import { useBlockedUsers } from '../../hooks/useBlockedUsers';
 import { Colors, STREAM_THEME } from '../../constants/theme';
-import { TAB_CONTENT_HEIGHT } from '../(tabs)/_layout';
 import { styles } from '../../styles/eventChatStyles';
 import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
 
@@ -151,7 +150,7 @@ export default function DMChatScreen() {
       </View>
 
       {/* ─── Zone B + C: Chat area ───────────────────────────────────── */}
-      <View style={[styles.chatContainer, { paddingBottom: TAB_CONTENT_HEIGHT }]}>
+      <View style={[styles.chatContainer, { paddingBottom: insets.bottom + 10 }]}>
         <Chat client={streamClient} style={STREAM_THEME}>
           <Channel
             channel={channel}
@@ -170,11 +169,7 @@ export default function DMChatScreen() {
         </Chat>
       </View>
 
-      {/* ─── Rigid Baseline Spacer ─────────────────────────────────── */}
-      <View style={{
-        height: Platform.OS === 'android' ? 0 : insets.bottom,
-        backgroundColor: Colors.surface,
-      }} />
+      {/* Baseline spacer removed — paddingBottom on chatContainer handles the floor. */}
     </View>
   );
 }

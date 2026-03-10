@@ -27,7 +27,6 @@ import { streamClient } from '../../lib/streamClient';
 import { useAuthStore } from '../../stores/authStore';
 import { useBlockedUsers } from '../../hooks/useBlockedUsers';
 import { Colors } from '../../constants/theme';
-import { TAB_CONTENT_HEIGHT } from '../(tabs)/_layout';
 import { styles, STREAM_THEME } from '../../styles/eventChatStyles';
 import { MeetupBanner } from '../../components/chat/MeetupBanner';
 import type { MeetupPoint } from '../../components/chat/MeetupBanner';
@@ -737,7 +736,7 @@ return (
 
         {/* ─── Zone B + C: Chat area (flex: 1) ─────────────────────────── */}
         {/* Stream Channel owns MessageList (Zone B, flex:1) and MessageInput (Zone C, fixed). */}
-        <View style={[styles.chatContainer, { paddingBottom: TAB_CONTENT_HEIGHT }]}>
+        <View style={[styles.chatContainer, { paddingBottom: insets.bottom + 10 }]}>
           <Chat client={streamClient} style={STREAM_THEME}>
               <Channel
                 channel={streamChannel}
@@ -783,12 +782,7 @@ return (
           </Chat>
         </View>
 
-        {/* ─── Rigid Baseline Spacer ───────────────────────────────────── */}
-        {/* Safe-area bottom only — TAB_CONTENT_HEIGHT on chatContainer handles the floor. */}
-        <View style={{
-          height: Platform.OS === 'ios' ? insets.bottom : 0,
-          backgroundColor: Colors.surface,
-        }} />
+        {/* Baseline spacer removed — paddingBottom on chatContainer handles the floor. */}
 
         {/* ── Overlays & Modals ── */}
         {isDeleting && (
