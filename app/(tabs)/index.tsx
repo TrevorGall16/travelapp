@@ -689,15 +689,16 @@ const handleMapReady = useCallback(() => {
         </View>
       </View>
 
-      {/* Map container — transparent bg so nothing paints over tiles */}
+      {/* Map container — red bg for debugging (visible = container renders, tiles don't) */}
       <View style={styles.mapContainer}>
+        <View style={styles.mapAbsoluteFill}>
 {/* @ts-ignore — Android-only prop suppression */}
 <MapView
           key={mapKey}
           ref={mapRef}
           style={styles.map}
           provider={PROVIDER_GOOGLE}
-          googleRenderer="LEGACY"
+          googleRenderer="LATEST"
           mapType="standard"
           showsUserLocation={false}
           showsMyLocationButton={false}
@@ -739,6 +740,7 @@ const handleMapReady = useCallback(() => {
             </Marker>
           )}
         </MapView>
+        </View>
       </View>
 
       {/* Empty state */}

@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { OverlayProvider } from 'stream-chat-expo';
 import type { Subscription } from 'expo-notifications';
-import { Colors } from '../constants/theme';
+import { Colors, setColorScheme } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { streamClient } from '../lib/streamClient';
 import {
@@ -40,6 +40,14 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const notificationListenerRef = useRef<Subscription>();
+
+  // ── Color scheme — syncs OS light/dark preference to theme tokens ─────────
+  const colorScheme = useColorScheme();
+  useEffect(() => {
+    // TODO: For now, force dark mode. Flip to `colorScheme ?? 'dark'` when
+    // all screens are tested with the light palette.
+    setColorScheme('dark');
+  }, [colorScheme]);
 
   // ── Push notification listeners ────────────────────────────────────────────
   useEffect(() => {

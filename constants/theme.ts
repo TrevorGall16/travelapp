@@ -24,69 +24,106 @@ export const Radius = {
   /** 9999 — pills, full-round */    full: 9999,
 } as const;
 
-// ─── Colors ──────────────────────────────────────────────────────────────────
-export const Colors = {
+// ─── Color Palettes ─────────────────────────────────────────────────────────
+
+/** Dark palette — current default (slate-based) */
+export const DarkColors = {
   // ── Backgrounds / surfaces ───────────────────────────────────────────────
-  /** Primary screen background — slate-950 */
   background: '#0B1120',
-  /** Card, header, banner background — slate-850 */
   surface: '#151E2F',
-  /** Elevated surface (modals, pressed states) — slate-800 */
   surfaceElevated: '#1E293B',
-  /** Borders, dividers, avatar placeholders — slate-700 */
   border: '#2A3649',
-  /** Subtle border for inner dividers */
   borderSubtle: '#1E293B',
 
   // ── Accent ───────────────────────────────────────────────────────────────
-  /** Brand electric-blue — blue-500 */
   accent: '#3B82F6',
-  /** Lighter accent for badges, chips — blue-400 */
   accentLight: '#60A5FA',
-  /** Accent at low opacity — glow behind CTAs */
   accentGlow: 'rgba(59,130,246,0.15)',
-  /** Accent muted — for secondary accent elements */
   accentMuted: 'rgba(59,130,246,0.08)',
 
   // ── Text ─────────────────────────────────────────────────────────────────
-  /** Primary text — slate-50 */
   textPrimary: '#F1F5F9',
-  /** Secondary / muted text — slate-400 */
   textSecondary: '#94A3B8',
-  /** Tertiary / inactive text — slate-500 */
   textTertiary: '#64748B',
 
   // ── Semantic ─────────────────────────────────────────────────────────────
-  /** Destructive / error — red-500 */
   error: '#EF4444',
-  /** Light error text on dark backgrounds — red-300 */
   errorLight: '#FCA5A5',
-  /** Error banner background — very dark red */
   errorBackground: '#1C0A0A',
-  /** Error banner border — red-900 */
   errorBorder: '#7F1D1D',
-  /** Success — green-500 */
   success: '#22C55E',
-  /** Warning — amber-500 */
   warning: '#F59E0B',
 
   // ── Base ─────────────────────────────────────────────────────────────────
   white: '#FFFFFF',
-  /** CSS transparent — used for border-only shapes (e.g. pin tail triangle) */
   transparent: 'transparent',
 
-  // ── Overlays (semi-transparent surfaces) ─────────────────────────────────
-  /** Accent at low opacity — user location dot halo */
+  // ── Overlays ─────────────────────────────────────────────────────────────
   accentSubtle: 'rgba(59,130,246,0.2)',
-  /** Topbar pill / city banner background */
   overlayStrong: 'rgba(11,17,32,0.92)',
-  /** Map city label background */
   overlayMedium: 'rgba(11,17,32,0.85)',
-  /** Full-screen modal backdrop (e.g. deleting overlay) */
   modalBackdrop: 'rgba(0,0,0,0.7)',
 } as const;
 
-export type ColorKey = keyof typeof Colors;
+/** Light palette — slate-50 / white based */
+export const LightColors = {
+  // ── Backgrounds / surfaces ───────────────────────────────────────────────
+  background: '#F8FAFC',
+  surface: '#FFFFFF',
+  surfaceElevated: '#F1F5F9',
+  border: '#E2E8F0',
+  borderSubtle: '#F1F5F9',
+
+  // ── Accent ───────────────────────────────────────────────────────────────
+  accent: '#2563EB',
+  accentLight: '#3B82F6',
+  accentGlow: 'rgba(37,99,235,0.12)',
+  accentMuted: 'rgba(37,99,235,0.06)',
+
+  // ── Text ─────────────────────────────────────────────────────────────────
+  textPrimary: '#0F172A',
+  textSecondary: '#475569',
+  textTertiary: '#94A3B8',
+
+  // ── Semantic ─────────────────────────────────────────────────────────────
+  error: '#DC2626',
+  errorLight: '#EF4444',
+  errorBackground: '#FEF2F2',
+  errorBorder: '#FECACA',
+  success: '#16A34A',
+  warning: '#D97706',
+
+  // ── Base ─────────────────────────────────────────────────────────────────
+  white: '#FFFFFF',
+  transparent: 'transparent',
+
+  // ── Overlays ─────────────────────────────────────────────────────────────
+  accentSubtle: 'rgba(37,99,235,0.15)',
+  overlayStrong: 'rgba(248,250,252,0.95)',
+  overlayMedium: 'rgba(248,250,252,0.9)',
+  modalBackdrop: 'rgba(0,0,0,0.5)',
+} as const;
+
+/** Returns the palette for a given color scheme. */
+export function getColors(scheme: 'light' | 'dark'): typeof DarkColors {
+  return scheme === 'light' ? LightColors : DarkColors;
+}
+
+// ── Active Colors export — defaults to dark, updated at runtime by root layout.
+// All existing StyleSheet.create calls reference this object.
+// When light mode is enabled, root layout calls `setColorScheme('light')` which
+// mutates these values in-place so static stylesheets pick them up on next render.
+export const Colors: Record<keyof typeof DarkColors, string> = { ...DarkColors };
+
+/** Call from root layout to switch the active palette at runtime. */
+export function setColorScheme(scheme: 'light' | 'dark') {
+  const palette = getColors(scheme);
+  for (const key of Object.keys(palette) as Array<keyof typeof DarkColors>) {
+    (Colors as Record<string, string>)[key] = palette[key];
+  }
+}
+
+export type ColorKey = keyof typeof DarkColors;
 
 // ─── Shadow Presets ──────────────────────────────────────────────────────────
 // Platform-aware shadow helpers for consistent elevation.
@@ -172,18 +209,6 @@ export const STREAM_THEME = {
   },
   inlineDateSeparator: {
     text: { color: '#E0E0E0' },
-  },
-  messageList: {
-    dateHeader: {
-      text: { color: '#E0E0E0' },
-    },
-    dateSeparator: {
-      date: { color: '#E0E0E0' },
-      container: { backgroundColor: 'transparent' },
-    },
-    inlineDateSeparator: {
-      text: { color: '#E0E0E0' },
-    },
   },
   messageInput: {
     container: {

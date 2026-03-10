@@ -85,16 +85,20 @@ function EventChannelPreview(
   const { channel, latestMessagePreview, unreadCount, validEventIds, onRequestLeave } = props;
 
   const rawId = channel.id ?? '';
-  const eventId = rawId.startsWith('event_') ? rawId.slice('event_'.length) : rawId;
+  const isEventChannel = rawId.startsWith('event_');
+  const eventId = isEventChannel ? rawId.slice('event_'.length) : rawId;
 
-  // ── Ghost check: hide channels for deleted/missing events ──
-  if (validEventIds && validEventIds.size > 0 && !validEventIds.has(eventId)) {
+  // ── Ghost check: only applies to event channels, NOT DMs ──
+  if (isEventChannel && validEventIds && validEventIds.size > 0 && !validEventIds.has(eventId)) {
     // Trigger background cleanup on first render of this ghost
     backgroundDeleteChannel(rawId);
     return null;
   }
 
-  const channelName = (channel.data?.name as string | undefined) ?? 'Event Chat';
+  // DM channels use a different name/navigation path
+  const isDMChannel = rawId.startsWith('dm_');
+  const channelName = (channel.data?.name as string | undefined)
+    ?? (isDMChannel ? 'Direct Message' : 'Event Chat');
   const avatarUrl = channel.data?.image as string | undefined;
 
   const previewText =
@@ -110,14 +114,21 @@ function EventChannelPreview(
   const hasUnread = (unreadCount ?? 0) > 0;
 
   const handleLongPress = useCallback(() => {
+    if (!isEventChannel) return; // DM channels don't support "Leave Event"
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onRequestLeave?.(channelName, eventId);
-  }, [channelName, eventId, onRequestLeave]);
+  }, [isEventChannel, channelName, eventId, onRequestLeave]);
 
   return (
     <Pressable
       style={({ pressed }) => [rowStyles.row, pressed && rowStyles.rowPressed]}
-      onPress={() => eventId && router.push(`/event/${eventId}`)}
+      onPress={() => {
+        if (isDMChannel) {
+          router.push(`/dm/${rawId}`);
+        } else if (eventId) {
+          router.push(`/event/${eventId}`);
+        }
+      }}
       onLongPress={handleLongPress}
       delayLongPress={400}
       accessibilityRole="button"
@@ -128,7 +139,7 @@ function EventChannelPreview(
         <Image source={{ uri: avatarUrl }} style={rowStyles.avatar} contentFit="cover" />
       ) : (
         <View style={rowStyles.avatarFallback}>
-          <Text style={rowStyles.avatarEmoji}>💬</Text>
+          <Text style={rowStyles.avatarEmoji}>{isDMChannel ? '👤' : '💬'}</Text>
         </View>
       )}
 

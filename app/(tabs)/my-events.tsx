@@ -20,10 +20,11 @@ import { differenceInMinutes } from 'date-fns';
 
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
-import type { EventCategory } from '../../types';
+import type { Event, EventCategory } from '../../types';
 import { CATEGORY_EMOJI } from '../../constants/categories';
 import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
 import { ActionModal, ConfirmModal } from '../../components/ActionModal';
+import EventCard from '../../components/map/EventCard';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -35,11 +36,16 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 interface EventRow {
   id: string;
   title: string;
+  description: string | null;
   category: EventCategory;
   status: 'active' | 'expired';
   expires_at: string;
   host_id: string;
   participant_count: number;
+  max_participants: number | null;
+  verified_only: boolean;
+  meetup_point_label: string | null;
+  created_at: string;
   host_display_name: string | null;
   host_avatar_url: string | null;
 }
@@ -61,13 +67,14 @@ function countdownInfo(expiresAt: string): { label: string; color: string } {
 function EventRowItem({
   item,
   currentUserId,
+  onPress,
   onLongPress,
 }: {
   item: EventRow;
   currentUserId: string;
+  onPress: (item: EventRow) => void;
   onLongPress: (item: EventRow, isHost: boolean) => void;
 }) {
-  const router = useRouter();
   const countdown = countdownInfo(item.expires_at);
   const isHost = item.host_id === currentUserId;
   const isExpired = item.status === 'expired';
@@ -75,7 +82,7 @@ function EventRowItem({
   return (
     <Pressable
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-      onPress={() => router.push(`/event/${item.id}`)}
+      onPress={() => onPress(item)}
       onLongPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         onLongPress(item, isHost);
@@ -172,7 +179,7 @@ export default function MyEventsScreen() {
 
       const { data: eventRows, error: eventError } = await supabase
         .from('events')
-        .select('id, title, category, status, expires_at, host_id, participant_count')
+        .select('id, title, description, category, status, expires_at, host_id, participant_count, max_participants, verified_only, meetup_point_label, created_at')
         .in('id', eventIds)
         .order('expires_at', { ascending: true });
 
@@ -204,11 +211,16 @@ export default function MyEventsScreen() {
         eventRows as Array<{
           id: string;
           title: string;
+          description: string | null;
           category: EventCategory;
           status: 'active' | 'expired';
           expires_at: string;
           host_id: string;
           participant_count: number;
+          max_participants: number | null;
+          verified_only: boolean;
+          meetup_point_label: string | null;
+          created_at: string;
         }>
       ).map((e) => ({
         ...e,
@@ -240,6 +252,43 @@ export default function MyEventsScreen() {
     setIsRefreshing(true);
     fetchMyEvents();
   }, [fetchMyEvents]);
+
+  // ── Event preview (bottom sheet) ────────────────────────────────────────
+  const [previewEvent, setPreviewEvent] = useState<Event | null>(null);
+  const router = useRouter();
+
+  const handleRowPress = useCallback(
+    (item: EventRow) => {
+      const isExpired = item.status === 'expired' || new Date(item.expires_at) <= new Date();
+      if (isExpired) {
+        // Expired events go straight to read-only chat
+        router.push(`/event/${item.id}`);
+        return;
+      }
+      // Active events open the preview sheet
+      const asEvent: Event = {
+        id: item.id,
+        host_id: item.host_id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        status: item.status,
+        verified_only: item.verified_only,
+        participant_count: item.participant_count,
+        max_participants: item.max_participants,
+        expires_at: item.expires_at,
+        meetup_point_label: item.meetup_point_label,
+        maps_taps: 0,
+        arrivals: 0,
+        post_event_messages: 0,
+        created_at: item.created_at,
+        latitude: 0,
+        longitude: 0,
+      };
+      setPreviewEvent(asEvent);
+    },
+    [router],
+  );
 
   // ── Long-press modal state ──────────────────────────────────────────────
   const [actionModalVisible, setActionModalVisible] = useState(false);
@@ -384,7 +433,7 @@ export default function MyEventsScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <EventRowItem item={item} currentUserId={user?.id ?? ''} onLongPress={handleLongPress} />
+          <EventRowItem item={item} currentUserId={user?.id ?? ''} onPress={handleRowPress} onLongPress={handleLongPress} />
         )}
         renderSectionHeader={({ section: { title } }) => (
           <Pressable
@@ -433,6 +482,11 @@ export default function MyEventsScreen() {
         onConfirm={handleConfirmDelete}
         title="Delete Event?"
         body="This action is permanent. Are you sure?"
+      />
+
+      <EventCard
+        event={previewEvent}
+        onDismiss={() => setPreviewEvent(null)}
       />
     </SafeAreaView>
   );

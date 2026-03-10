@@ -150,7 +150,7 @@ export default function DMChatScreen() {
       </View>
 
       {/* ─── Zone B + C: Chat area ───────────────────────────────────── */}
-      <View style={[styles.chatContainer, { paddingBottom: insets.bottom + 10 }]}>
+      <View style={styles.chatContainer}>
         <Chat client={streamClient} style={STREAM_THEME}>
           <Channel
             channel={channel}
@@ -169,7 +169,8 @@ export default function DMChatScreen() {
         </Chat>
       </View>
 
-      {/* Baseline spacer removed — paddingBottom on chatContainer handles the floor. */}
+      {/* System nav bar spacer — dynamic height from safe area insets */}
+      <View style={{ height: insets.bottom, backgroundColor: Colors.surface }} />
     </View>
   );
 }

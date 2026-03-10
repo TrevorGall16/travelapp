@@ -736,7 +736,7 @@ return (
 
         {/* ─── Zone B + C: Chat area (flex: 1) ─────────────────────────── */}
         {/* Stream Channel owns MessageList (Zone B, flex:1) and MessageInput (Zone C, fixed). */}
-        <View style={[styles.chatContainer, { paddingBottom: insets.bottom + 10 }]}>
+        <View style={styles.chatContainer}>
           <Chat client={streamClient} style={STREAM_THEME}>
               <Channel
                 channel={streamChannel}
@@ -782,7 +782,8 @@ return (
           </Chat>
         </View>
 
-        {/* Baseline spacer removed — paddingBottom on chatContainer handles the floor. */}
+        {/* System nav bar spacer — dynamic height from safe area insets */}
+        <View style={{ height: insets.bottom, backgroundColor: Colors.surface }} />
 
         {/* ── Overlays & Modals ── */}
         {isDeleting && (

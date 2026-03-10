@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapPin, Compass, Users } from 'lucide-react-native';
 import { COUNTRIES } from '../../constants/countries';
-import { Colors, Radius, Shadows, Spacing } from '../../constants/theme';
+import { Colors, Radius, Shadows, Spacing, setColorScheme } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { forceGlobalSignOut } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
@@ -79,6 +79,13 @@ export default function ProfileScreen() {
       })();
     }, [user]),
   );
+
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const toggleTheme = useCallback(() => {
+    const next = !isDarkMode;
+    setIsDarkMode(next);
+    setColorScheme(next ? 'dark' : 'light');
+  }, [isDarkMode]);
 
   const activitiesCount = profile?.events_hosted_count ?? 0;
   const countriesCount = profile?.visited_countries?.length || 1;
@@ -215,6 +222,18 @@ export default function ProfileScreen() {
           <Text style={styles.actionLabel}>Settings</Text>
           <Text style={styles.actionChevron}>›</Text>
         </TouchableOpacity>
+
+        <View style={styles.actionDivider} />
+
+        <View style={styles.actionRow}>
+          <Text style={styles.actionLabel}>Dark Mode</Text>
+          <Switch
+            value={isDarkMode}
+            onValueChange={toggleTheme}
+            trackColor={{ false: Colors.border, true: Colors.accent }}
+            thumbColor={Colors.white}
+          />
+        </View>
       </View>
 
       {/* ── Log Out ── */}
