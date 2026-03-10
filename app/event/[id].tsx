@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   Text,
   View,
@@ -26,6 +27,7 @@ import { streamClient } from '../../lib/streamClient';
 import { useAuthStore } from '../../stores/authStore';
 import { useBlockedUsers } from '../../hooks/useBlockedUsers';
 import { Colors } from '../../constants/theme';
+import { TAB_CONTENT_HEIGHT } from '../(tabs)/_layout';
 import { styles, STREAM_THEME } from '../../styles/eventChatStyles';
 import { MeetupBanner } from '../../components/chat/MeetupBanner';
 import type { MeetupPoint } from '../../components/chat/MeetupBanner';
@@ -35,7 +37,6 @@ import { DeleteConfirmModal } from '../../components/chat/DeleteConfirmModal';
 import { MembersModal } from '../../components/chat/MembersModal';
 import type { MemberEntry } from '../../components/chat/MembersModal';
 import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
-import { TAB_CONTENT_HEIGHT } from '../(tabs)/_layout';
 
 // ─── Sender Name Header ─────────────────────────────────────────────────────
 // Shows the sender's display name above their message in group chat.
@@ -105,7 +106,7 @@ export default function EventChatScreen() {
   const isMockEvent = eventId === MOCK_EVENT_ID;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const bottomNavPadding = insets.bottom + TAB_CONTENT_HEIGHT;
+
 
   const { user, profile, streamToken } = useAuthStore();
 
@@ -169,21 +170,6 @@ export default function EventChatScreen() {
     },
     [], // stable — reads blockedUserIds via ref
   );
-
-  const EVENT_STREAM_THEME = {
-    ...STREAM_THEME,
-    dateHeader: { text: { color: '#E0E0E0' } },
-    messageList: { dateHeader: { text: { color: '#E0E0E0' } } },
-    messageInput: {
-      ...STREAM_THEME.messageInput,
-      container: {
-        ...STREAM_THEME.messageInput.container,
-        paddingVertical: 0,
-        paddingBottom: 0,
-        marginBottom: 0,
-      },
-    },
-  } as any;
 
   // ── 5-second timeout: surface the error instead of spinning forever ────────
   useEffect(() => {
@@ -653,128 +639,110 @@ export default function EventChatScreen() {
       });
 
 // ── Main render ────────────────────────────────────────────────────────────
+// Rigid Container Strategy — three zones prevent flex-fighting:
+//   Zone A (Fixed Top):   Header + Banners — non-flex, fixed height
+//   Zone B (Middle):      MessageList — flex: 1 (owned by Stream Channel)
+//   Zone C (Fixed Bottom): MessageInput — app-owned, fixed baseline
+//
+// Keyboard ownership:
+//   Android: OS-owned "pan" (softwareKeyboardLayoutMode). KCV disabled.
+//   iOS: Stream KCV enabled. keyboardVerticalOffset = header area above chat.
+
 return (
-    // OverlayProvider lives in app/_layout.tsx — do NOT nest it here.
-<<<<<<< HEAD
-    // Stream's KCV handles keyboard avoidance on both iOS + Android.
-    // Android uses softwareKeyboardLayoutMode "pan" to avoid double-resize.
-=======
-    // iOS uses Stream KCV; Android uses softwareKeyboardLayoutMode "pan" + native positioning.
->>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: Colors.background,
-        paddingTop: insets.top,
-<<<<<<< HEAD
-        paddingBottom: bottomNavPadding,
-=======
-        paddingBottom: Platform.OS === 'android' ? 0 : insets.bottom,
->>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
-      }}
-    >
+    <View style={styles.container}>
 
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.back();
-            }}
-            style={styles.backButton}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={styles.backArrow}>←</Text>
-          </Pressable>
-
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {eventTitle}
-          </Text>
-
-          <View style={styles.headerRight}>
+        {/* ─── Zone A: Fixed Top ────────────────────────────────────────── */}
+        <View style={{ paddingTop: insets.top }}>
+          {/* Header */}
+          <View style={styles.header}>
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setIsMembersModalVisible(true);
+                router.back();
               }}
-              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-            >
-              <Text style={styles.participantBadge}>
-                👥 {streamChannel ? Object.keys(streamChannel.state.members).length : participantCount}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setOptionsModalVisible(true);
-              }}
-              disabled={isDeleting}
+              style={styles.backButton}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Text style={styles.menuDots}>•••</Text>
+              <Text style={styles.backArrow}>←</Text>
             </Pressable>
+
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {eventTitle}
+            </Text>
+
+            <View style={styles.headerRight}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setIsMembersModalVisible(true);
+                }}
+                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+              >
+                <Text style={styles.participantBadge}>
+                  👥 {streamChannel ? Object.keys(streamChannel.state.members).length : participantCount}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setOptionsModalVisible(true);
+                }}
+                disabled={isDeleting}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={styles.menuDots}>•••</Text>
+              </Pressable>
+            </View>
           </View>
+
+          {/* Banners (Expired / Meetup / Join) */}
+          {eventStatus === 'expired' && (
+            <View style={styles.expiredBanner}>
+              <Text style={styles.expiredText}>This one's over — chat is read-only.</Text>
+            </View>
+          )}
+
+          <MeetupBanner
+            meetupPoint={meetupPoint}
+            isHost={isHost}
+            onSetMeetupPoint={handleSetMeetupPoint}
+          />
+
+          {!isHost && !isParticipant && (
+            <View style={styles.joinBar}>
+              {isFull ? (
+                <View style={[styles.joinButton, styles.joinButtonDisabled]}>
+                  <Text style={styles.joinButtonTextMuted}>Event Full</Text>
+                </View>
+              ) : (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.joinButton,
+                    styles.joinButtonAccent,
+                    isJoining && styles.joinButtonLoading,
+                    pressed && !isJoining && { opacity: 0.85 },
+                  ]}
+                  onPress={handleJoinEvent}
+                  disabled={isJoining}
+                >
+                  {isJoining
+                    ? <ActivityIndicator size="small" color={Colors.white} />
+                    : <Text style={styles.joinButtonText}>Count me in.</Text>
+                  }
+                </Pressable>
+              )}
+            </View>
+          )}
         </View>
 
-        {/* ── Banners (Expired / Meetup / Join) ── */}
-        {eventStatus === 'expired' && (
-          <View style={styles.expiredBanner}>
-            <Text style={styles.expiredText}>This one's over — chat is read-only.</Text>
-          </View>
-        )}
-
-        <MeetupBanner
-          meetupPoint={meetupPoint}
-          isHost={isHost}
-          onSetMeetupPoint={handleSetMeetupPoint}
-        />
-
-        {!isHost && !isParticipant && (
-          <View style={styles.joinBar}>
-            {isFull ? (
-              <View style={[styles.joinButton, styles.joinButtonDisabled]}>
-                <Text style={styles.joinButtonTextMuted}>Event Full</Text>
-              </View>
-            ) : (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.joinButton,
-                  styles.joinButtonAccent,
-                  isJoining && styles.joinButtonLoading,
-                  pressed && !isJoining && { opacity: 0.85 },
-                ]}
-                onPress={handleJoinEvent}
-                disabled={isJoining}
-              >
-                {isJoining
-                  ? <ActivityIndicator size="small" color={Colors.white} />
-                  : <Text style={styles.joinButtonText}>Count me in.</Text>
-                }
-              </Pressable>
-            )}
-          </View>
-        )}
-
-        {/* ── Stream Chat Container ── */}
-<<<<<<< HEAD
-        {/* Stream KCV handles keyboard attachment on both platforms.
-            Offset keeps the input/list clear of the custom top header area. */}
-        <View style={styles.chatContainer}>
+        {/* ─── Zone B + C: Chat area (flex: 1) ─────────────────────────── */}
+        {/* Stream Channel owns MessageList (Zone B, flex:1) and MessageInput (Zone C, fixed). */}
+        <View style={[styles.chatContainer, { paddingBottom: TAB_CONTENT_HEIGHT }]}>
           <Chat client={streamClient} style={STREAM_THEME}>
               <Channel
                 channel={streamChannel}
-                disableKeyboardCompatibleView={false}
-                keyboardVerticalOffset={insets.top + 56}
-=======
-        {/* iOS: Stream KCV + header offset. Android: KCV disabled to keep a zero-gap resting baseline. */}
-        <View style={styles.chatContainer}>
-          <Chat client={streamClient} style={EVENT_STREAM_THEME}>
-              <Channel
-                channel={streamChannel}
-                theme={EVENT_STREAM_THEME}
                 disableKeyboardCompatibleView={Platform.OS === 'android'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
->>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : undefined}
                 enableMessageReactions
                 enableMessageReplies
                 MessageHeader={SenderNameHeader}
@@ -806,9 +774,6 @@ return (
                   return actions;
                 }}
               >
-                {/* SDK defaults: own messages right, others left (CHAT_RULE_01).
-                    Avatars show on last message per group. Timestamps via MessageFooter.
-                    Date separators rendered automatically. No extra props needed. */}
                 <MessageList />
 
                 {(isParticipant || isHost) && (
@@ -817,6 +782,13 @@ return (
               </Channel>
           </Chat>
         </View>
+
+        {/* ─── Rigid Baseline Spacer ───────────────────────────────────── */}
+        {/* Safe-area bottom only — TAB_CONTENT_HEIGHT on chatContainer handles the floor. */}
+        <View style={{
+          height: Platform.OS === 'ios' ? insets.bottom : 0,
+          backgroundColor: Colors.surface,
+        }} />
 
         {/* ── Overlays & Modals ── */}
         {isDeleting && (

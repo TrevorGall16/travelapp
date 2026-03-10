@@ -71,6 +71,13 @@ android: {
         }
       ],
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1DA1F2"
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

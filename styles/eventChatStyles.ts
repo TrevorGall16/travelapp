@@ -167,10 +167,6 @@ export const styles = StyleSheet.create({
 
   chatContainer: {
     flex: 1,
-<<<<<<< HEAD
-    minHeight: 0,
-=======
->>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
   },
 
   // ── Expired banner ──────────────────────────────────────────────────────

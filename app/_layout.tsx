@@ -1,12 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { OverlayProvider } from 'stream-chat-expo';
+import type { Subscription } from 'expo-notifications';
 import { Colors } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { streamClient } from '../lib/streamClient';
+import {
+  registerForPushNotifications,
+  clearPushToken,
+  setupNotificationResponseListener,
+  handleInitialNotification,
+} from '../lib/pushNotifications';
 import { useAuthStore } from '../stores/authStore';
 import type { Profile } from '../types';
 
@@ -32,6 +39,27 @@ export default function RootLayout() {
   } = useAuthStore();
   const router = useRouter();
   const segments = useSegments();
+  const notificationListenerRef = useRef<Subscription>();
+
+  // ── Push notification listeners ────────────────────────────────────────────
+  useEffect(() => {
+    // Handle notification taps (warm start)
+    notificationListenerRef.current = setupNotificationResponseListener();
+
+    // Handle cold-start notification tap
+    handleInitialNotification();
+
+    return () => {
+      notificationListenerRef.current?.remove();
+    };
+  }, []);
+
+  // Register push token when profile is complete
+  useEffect(() => {
+    if (user && profile?.setup_completed) {
+      registerForPushNotifications(user.id);
+    }
+  }, [user, profile?.setup_completed]);
 
   // ── Auth initialization ──────────────────────────────────────────────────
   useEffect(() => {
@@ -159,6 +187,12 @@ if (session?.user) {
             }
           }
         } else {
+          // Clear push token before sign-out (use store user since session is gone)
+          const prevUserId = useAuthStore.getState().user?.id;
+          if (prevUserId) {
+            clearPushToken(prevUserId).catch(() => {});
+          }
+
           // Disconnect Stream before clearing auth state
           if (streamClient.userID) {
             streamClient.disconnectUser().catch((err) =>

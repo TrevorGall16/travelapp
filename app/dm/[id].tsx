@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   Text,
   View,
@@ -24,6 +25,7 @@ import type { Channel as StreamChannel } from 'stream-chat';
 import { streamClient } from '../../lib/streamClient';
 import { useBlockedUsers } from '../../hooks/useBlockedUsers';
 import { Colors, STREAM_THEME } from '../../constants/theme';
+import { TAB_CONTENT_HEIGHT } from '../(tabs)/_layout';
 import { styles } from '../../styles/eventChatStyles';
 import { ChatInputButtons } from '../../components/chat/ChatInputButtons';
 
@@ -124,42 +126,37 @@ export default function DMChatScreen() {
     );
   }
 
+  // Rigid Container: Zone A (header) + Zone B+C (chat) + baseline spacer.
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: insets.top }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.back();
-          }}
-          style={styles.backButton}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <Text style={styles.backArrow}>←</Text>
-        </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {headerName}
-        </Text>
-        <View style={{ width: 40 }} />
+    <View style={styles.container}>
+
+      {/* ─── Zone A: Fixed Top ───────────────────────────────────────── */}
+      <View style={{ paddingTop: insets.top }}>
+        <View style={styles.header}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.back();
+            }}
+            style={styles.backButton}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Text style={styles.backArrow}>←</Text>
+          </Pressable>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {headerName}
+          </Text>
+          <View style={{ width: 40 }} />
+        </View>
       </View>
 
-<<<<<<< HEAD
-      {/* Chat — Stream KCV handles keyboard on both iOS + Android. */}
+      {/* ─── Zone B + C: Chat area ───────────────────────────────────── */}
+      <View style={[styles.chatContainer, { paddingBottom: TAB_CONTENT_HEIGHT }]}>
         <Chat client={streamClient} style={STREAM_THEME}>
           <Channel
             channel={channel}
-            disableKeyboardCompatibleView={false}
-            keyboardVerticalOffset={insets.top + 56}
-=======
-      {/* Chat — iOS uses Stream KCV; Android keeps KCV disabled. */}
-        <Chat client={streamClient} style={STREAM_THEME}>
-          <Channel
-            channel={channel}
-            theme={STREAM_THEME as any}
             disableKeyboardCompatibleView={Platform.OS === 'android'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
->>>>>>> b892169 (Force zero-gap Android chat baseline and hardcode date header contrast)
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : undefined}
             MessageSimple={BlockFilteredMessage}
             InputButtons={ChatInputButtons}
             hasImagePicker
@@ -171,6 +168,13 @@ export default function DMChatScreen() {
             <MessageInput />
           </Channel>
         </Chat>
+      </View>
+
+      {/* ─── Rigid Baseline Spacer ─────────────────────────────────── */}
+      <View style={{
+        height: Platform.OS === 'android' ? 0 : insets.bottom,
+        backgroundColor: Colors.surface,
+      }} />
     </View>
   );
 }
