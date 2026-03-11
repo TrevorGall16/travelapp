@@ -54,7 +54,7 @@ android: {
         barStyle: "light-content"
       },
       statusBar: {
-        translucent: false
+        translucent: true
       }
     },
     web: {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Platform,
   Pressable,
   Text,
@@ -152,6 +153,16 @@ export default function EventChatScreen() {
   const [isJoining, setIsJoining] = useState(false);
 
   const channelRef = useRef<StreamChannel | null>(null);
+
+  // ── Keyboard-aware bottom spacer (Android: 60px when hidden, 0 when shown) ──
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+  const bottomSpacer = Platform.OS === 'android' && !keyboardVisible ? 60 : 0;
 
   const isHost = user?.id === eventHostId;
 
@@ -594,9 +605,9 @@ export default function EventChatScreen() {
 //   Zone C (Fixed Bottom): MessageInput — app-owned, fixed baseline
 //
 // Keyboard ownership:
-//   Android: OS-owned "adjustResize" (softwareKeyboardLayoutMode: "resize").
-//            statusBar.translucent: false ensures adjustResize works correctly.
-//            Stream KCV is disabled to prevent double-adjustment.
+//   Android: Manual spacer (60px when keyboard hidden, 0 when visible).
+//            translucent: true statusbar breaks adjustResize, so we handle
+//            the gap manually. Stream KCV is disabled to prevent double-adjustment.
 //   iOS: Stream KCV enabled. keyboardVerticalOffset = insets.top + header height.
 
 return (
@@ -687,7 +698,7 @@ return (
         </View>
 
         {/* ─── Zone B + C: Chat area (flex: 1) ─────────────────────────── */}
-        <View style={styles.chatContainer}>
+        <View style={[styles.chatContainer, { marginBottom: bottomSpacer }]}>
           {!streamChannel ? (
             <View style={styles.centeredFill}>
               <ActivityIndicator size="large" color={colors.accent} />

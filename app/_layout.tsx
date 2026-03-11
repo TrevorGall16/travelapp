@@ -286,7 +286,7 @@ if (session?.user) {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style={scheme === 'light' ? 'dark' : 'light'} translucent={false} />
+      <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
       <GestureHandlerRootView style={styles.flex}>
         {/* OverlayProvider must live here — above every screen and every KAV —
             so that Stream's gorhom/bottom-sheet snap-point math always operates

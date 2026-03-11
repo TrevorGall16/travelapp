@@ -2,7 +2,7 @@
 // Trigger: Client call from app/event/create.tsx
 // Responsibilities:
 //   1. Verify caller JWT
-//   2. Fetch host profile (for Stream upsert)
+//   2. Enforce smart event limit (free users: 1 truly-active event, verified: unlimited)
 //   3. Insert event row with PostGIS location + city column
 //   4. Insert host into event_participants (DB trigger auto-increments participant_count)
 //   5. Create Stream.io channel and add host as member
@@ -114,16 +114,36 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'expires_at must be between 1 and 26 hours from now' }, 400);
   }
 
-  // ── 3. Fetch profile (needed for Stream upsert later) ──────────────────
-  const profileResult = await serviceClient
-    .from('profiles')
-    .select('verification_status, display_name, avatar_url')
-    .eq('id', user.id)
-    .single();
+  // ── 3. Smart event limit ────────────────────────────────────────────────
+  // Fetch profile + count of truly-active events (status='active' AND not expired) in parallel.
+  // Expired events (expires_at in the past) do NOT count toward the limit.
+  const [profileResult, activeEventCountResult] = await Promise.all([
+    serviceClient
+      .from('profiles')
+      .select('verification_status, display_name, avatar_url')
+      .eq('id', user.id)
+      .single(),
+    serviceClient
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_id', user.id)
+      .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString()),
+  ]);
 
   if (profileResult.error) {
     console.error('[create-event] profile fetch error:', profileResult.error.message);
     return jsonResponse({ error: 'Internal server error' }, 500);
+  }
+
+  const isVerified = profileResult.data?.verification_status === 'verified';
+  const activeCount = activeEventCountResult.count ?? 0;
+
+  if (!isVerified && activeCount >= 1) {
+    return jsonResponse({
+      code: 'LIMIT_REACHED',
+      error: 'Free users can only have 1 active event. Your previous event must expire before you can create another.',
+    }, 200);
   }
 
   // ── 4. Insert event into DB ──────────────────────────────────────────────

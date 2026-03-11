@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Platform,
   Pressable,
   Text,
@@ -39,6 +40,16 @@ export default function DMChatScreen() {
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<StreamChannel | null>(null);
+
+  // ── Keyboard-aware bottom spacer (Android: 60px when hidden, 0 when shown) ──
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+  const bottomSpacer = Platform.OS === 'android' && !keyboardVisible ? 60 : 0;
 
   // ── Blocked users — hide their messages ──────────────────────────────────
   const blockedUserIds = useBlockedUsers();
@@ -152,7 +163,7 @@ export default function DMChatScreen() {
       </View>
 
       {/* ─── Zone B + C: Chat area ───────────────────────────────────── */}
-      <View style={styles.chatContainer}>
+      <View style={[styles.chatContainer, { marginBottom: bottomSpacer }]}>
         <Chat client={streamClient} style={getStreamTheme(colors)}>
           <Channel
             channel={channel}
