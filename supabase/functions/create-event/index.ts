@@ -114,32 +114,16 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'expires_at must be between 1 and 26 hours from now' }, 400);
   }
 
-  // ── 3. Check free-user active event limit ────────────────────────────────
-  // Fetch user's verification status and active event count in parallel
-  const [profileResult, activeEventCountResult] = await Promise.all([
-    serviceClient
-      .from('profiles')
-      .select('verification_status, display_name, avatar_url')
-      .eq('id', user.id)
-      .single(),
-    serviceClient
-      .from('events')
-      .select('id', { count: 'exact', head: true })
-      .eq('host_id', user.id)
-      .eq('status', 'active')
-      .gt('expires_at', new Date().toISOString()),
-  ]);
+  // ── 3. Fetch profile (needed for Stream upsert later) ──────────────────
+  const profileResult = await serviceClient
+    .from('profiles')
+    .select('verification_status, display_name, avatar_url')
+    .eq('id', user.id)
+    .single();
 
   if (profileResult.error) {
     console.error('[create-event] profile fetch error:', profileResult.error.message);
     return jsonResponse({ error: 'Internal server error' }, 500);
-  }
-
-  const isVerified = profileResult.data?.verification_status === 'verified';
-  const activeCount = activeEventCountResult.count ?? 0;
-
-  if (!isVerified && activeCount >= 1) {
-    return jsonResponse({ code: 'LIMIT_REACHED', error: 'Free users can only have 1 active event' }, 200);
   }
 
   // ── 4. Insert event into DB ──────────────────────────────────────────────
@@ -167,8 +151,24 @@ Deno.serve(async (req: Request) => {
     .single();
 
   if (insertError || !event) {
-    console.error('[create-event] event insert error:', insertError?.message);
-    return jsonResponse({ error: 'Failed to create event' }, 500);
+    console.error('[create-event] Insert Error:', JSON.stringify(insertError, null, 2));
+    console.error('[create-event] Insert payload was:', JSON.stringify({
+      host_id: user.id,
+      title: title.trim(),
+      category,
+      description: description ?? null,
+      verified_only: verified_only ?? false,
+      participant_count: 0,
+      expires_at: expiresAtDate.toISOString(),
+      city: city ?? null,
+      location: `SRID=4326;POINT(${longitude} ${latitude})`,
+    }, null, 2));
+    return jsonResponse({
+      error: `Failed to create event: ${insertError?.message ?? 'no event returned'}`,
+      details: insertError?.details ?? null,
+      hint: insertError?.hint ?? null,
+      code: insertError?.code ?? null,
+    }, 500);
   }
 
 // ── 5. Insert host into event_participants ───────────────────────────────
@@ -178,9 +178,13 @@ Deno.serve(async (req: Request) => {
 
   if (participantError) {
     // FATAL: If we can't add the host, delete the event and abort.
-    console.error('[create-event] Fatal participant insert error:', participantError.message);
+    console.error('[create-event] Fatal participant insert error:', JSON.stringify(participantError, null, 2));
     await serviceClient.from('events').delete().eq('id', event.id);
-    return jsonResponse({ error: 'Failed to join own event' }, 500);
+    return jsonResponse({
+      error: `Failed to join own event: ${participantError.message}`,
+      details: participantError.details ?? null,
+      code: participantError.code ?? null,
+    }, 500);
   }
 
   // ── 6. Create Stream.io channel ──────────────────────────────────────────

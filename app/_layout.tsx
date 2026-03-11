@@ -298,7 +298,12 @@ if (session?.user) {
         ) : (
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
             <Stack.Screen name="(auth)" />
-            {setupComplete && <Stack.Screen name="(tabs)" />}
+            {setupComplete && (
+              <Stack.Screen
+                name="(tabs)"
+                options={{ contentStyle: { backgroundColor: 'transparent' } }}
+              />
+            )}
             <Stack.Screen name="event/create" options={{ presentation: 'modal' }} />
             <Stack.Screen name="event/[id]" />
             <Stack.Screen name="event/edit-location" />

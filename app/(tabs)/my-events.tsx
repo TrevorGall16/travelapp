@@ -396,9 +396,17 @@ export default function MyEventsScreen() {
           <Text style={styles.emptyEmoji}>🗺️</Text>
           <Text style={styles.emptyTitle}>No events yet</Text>
           <Text style={styles.emptyBody}>
-            Tap a pin on the map to join an event, or create your own with the
-            {' '}+ button.
+            Tap a pin on the map to join an event, or create your own.
           </Text>
+          <Pressable
+            style={({ pressed }) => [styles.createBtn, pressed && { opacity: 0.85 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/event/create');
+            }}
+          >
+            <Text style={styles.createBtnText}>Create Event</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -655,5 +663,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textTertiary,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  createBtn: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: Radius.full,
+    marginTop: Spacing.md,
+    ...Shadows.accentGlow,
+  },
+  createBtnText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

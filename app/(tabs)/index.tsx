@@ -705,8 +705,8 @@ const handleMapReady = useCallback(() => {
           provider={PROVIDER_GOOGLE}
           googleRenderer="LATEST"
           mapType="standard"
-          showsUserLocation={false}
-          showsMyLocationButton={false}
+          showsUserLocation={true}
+          showsMyLocationButton={true}
           toolbarEnabled={false}
           initialRegion={
             region ?? {

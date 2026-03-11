@@ -80,7 +80,9 @@ export function dbEventToEvent(row: DBEvent): Event | null {
     [longitude, latitude] = coords;
   } else {
     // RPC / REST path — GeoJSON object
-    [longitude, latitude] = row.location.coordinates;
+    // parseFloat guards against coords arriving as strings from Supabase RPC
+    longitude = parseFloat(row.location.coordinates[0] as any);
+    latitude = parseFloat(row.location.coordinates[1] as any);
   }
 
   if (!isFinite(latitude) || !isFinite(longitude)) return null;

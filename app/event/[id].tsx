@@ -685,12 +685,20 @@ return (
         </View>
 
         {/* ─── Zone B + C: Chat area (flex: 1) ─────────────────────────── */}
-        {/* Stream Channel owns MessageList (Zone B, flex:1) and MessageInput (Zone C, fixed). */}
-        <View style={styles.chatContainer}>
+        {/* marginBottom: 100 forces the entire Stream UI to stop 100px before
+            the bottom of the screen, shoving the input bar above the nav bar. */}
+        <View style={{ flex: 1, marginBottom: 50, backgroundColor: 'transparent' }}>
+          {!streamChannel ? (
+            <View style={styles.centeredFill}>
+              <ActivityIndicator size="large" color={colors.accent} />
+              <Text style={styles.loadingText}>Loading chat…</Text>
+            </View>
+          ) : (
           <Chat client={streamClient} style={getStreamTheme(colors)}>
               <Channel
                 channel={streamChannel}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : undefined}
+                keyboardVerticalOffset={Platform.OS === 'android' ? -20 : 60}
+                disableKeyboardCompatibleView={Platform.OS === 'android'}
                 enableMessageReactions
                 enableMessageReplies
                 MessageHeader={SenderNameHeader}
@@ -729,6 +737,7 @@ return (
                 )}
               </Channel>
           </Chat>
+          )}
         </View>
 
         {/* ── Overlays & Modals ── */}
