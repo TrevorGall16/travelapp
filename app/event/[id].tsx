@@ -466,6 +466,9 @@ export default function EventChatScreen() {
         return;
       }
 
+      // Catch-all: Edge Functions return 200 even on failure — trap any unhandled error
+      if (data?.error && !data?.success) throw new Error(data.error);
+
       // Success — join-event now returns already_member:true when the DB insert
       // was idempotent (23505). Only increment the display count for new joins.
       setIsParticipant(true);
@@ -495,6 +498,7 @@ export default function EventChatScreen() {
       const { data, error: fnError } = await supabase.functions.invoke('delete-event', {
         body: { event_id: eventId },
       });
+      if (data?.error) throw new Error(data.error);
       if (fnError) throw fnError;
 
       // Clear overlay BEFORE navigating so it doesn't persist during transition
@@ -527,6 +531,7 @@ export default function EventChatScreen() {
               const { data, error: fnError } = await supabase.functions.invoke('leave-event', {
                 body: { event_id: eventId },
               });
+              if (data?.error) throw new Error(data.error);
               if (fnError) throw fnError;
               // Optimistic update — user is now a spectator (read-only)
               setIsParticipant(false);

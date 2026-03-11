@@ -85,8 +85,8 @@ export const LightColors = {
 
   // ── Text ─────────────────────────────────────────────────────────────────
   textPrimary: '#0F172A',
-  textSecondary: '#475569',
-  textTertiary: '#94A3B8',
+  textSecondary: '#334155',
+  textTertiary: '#64748B',
 
   // ── Semantic ─────────────────────────────────────────────────────────────
   error: '#DC2626',

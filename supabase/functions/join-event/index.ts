@@ -1,7 +1,8 @@
 // Supabase Edge Function: join-event
 // Uses the join_event_atomic RPC for race-safe capacity checks.
+// Stream.io membership is handled asynchronously by the sync-stream-member
+// Edge Function (fired via pg_net database trigger on event_participants INSERT).
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { StreamChat } from 'npm:stream-chat@8';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,8 +17,6 @@ Deno.serve(async (req: Request) => {
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const STREAM_API_KEY = Deno.env.get('EXPO_PUBLIC_STREAM_API_KEY')!;
-    const STREAM_SECRET_KEY = Deno.env.get('STREAM_SECRET_KEY')!;
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -52,7 +51,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Already a member — skip Stream sync, return early
+    // Already a member — the pg_net trigger won't fire again (no new INSERT)
     if (result.already_member) {
       return new Response(JSON.stringify({ success: true, already_member: true }), {
         status: 200,
@@ -60,60 +59,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 3. Stream Chat Sync — only for NEW joins
-    const streamServer = StreamChat.getInstance(STREAM_API_KEY, STREAM_SECRET_KEY);
-
-    // Upsert the Stream user before channel operations
-    const { data: joinerProfile } = await supabaseAdmin
-      .from('profiles')
-      .select('display_name, avatar_url')
-      .eq('id', user.id)
-      .single();
-
-    await streamServer.upsertUser({
-      id: user.id,
-      name: joinerProfile?.display_name ?? user.email ?? 'Traveler',
-      image: joinerProfile?.avatar_url ?? undefined,
-    });
-
-    // Guard: verify Stream channel exists
-    const existingChannels = await streamServer.queryChannels(
-      { type: 'messaging', id: { $eq: `event_${event_id}` } },
-      {},
-      { limit: 1 },
-    );
-
-    if (existingChannels.length === 0) {
-      // Roll back the DB insert — the RPC already committed, so we need a manual delete
-      await supabaseAdmin
-        .from('event_participants')
-        .delete()
-        .eq('event_id', event_id)
-        .eq('user_id', user.id);
-
-      return new Response(
-        JSON.stringify({
-          code: 'CHAT_ROOM_MISSING',
-          error: "This event's chat room is unavailable. Please wait or contact the host.",
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // 4. Add member to Stream channel — roll back DB on failure
-    try {
-      const channel = streamServer.channel('messaging', `event_${event_id}`);
-      await channel.addMembers([user.id]);
-    } catch (streamErr: any) {
-      console.error('[join-event] addMembers failed — rolling back:', streamErr);
-      await supabaseAdmin
-        .from('event_participants')
-        .delete()
-        .eq('event_id', event_id)
-        .eq('user_id', user.id);
-      throw streamErr;
-    }
-
+    // New join — DB row inserted, pg_net trigger will async-add to Stream channel
     return new Response(JSON.stringify({ success: true, already_member: false }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

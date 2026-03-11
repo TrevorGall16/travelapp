@@ -1,7 +1,9 @@
 // components/chat/OptionsModal.tsx
 
+import { useMemo } from 'react';
 import { Alert, Modal, Pressable, Text, View } from 'react-native';
-import { styles } from '../../styles/eventChatStyles';
+import { createStyles } from '../../styles/eventChatStyles';
+import { useAppTheme } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -31,6 +33,8 @@ export function OptionsModal({
   onLeaveEvent,
 }: OptionsModalProps) {
   const { user } = useAuthStore();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <Modal
       visible={visible}

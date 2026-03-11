@@ -1,14 +1,18 @@
 // styles/mapScreenStyles.ts — Premium map screen styles
 
-import { Platform, StyleSheet } from 'react-native';
+import { Dimensions, Platform, StyleSheet } from 'react-native';
 import type { ThemeColors } from '../constants/theme';
 import { Radius, Shadows, Spacing } from '../constants/theme';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export const createStyles = (colors: ThemeColors) => StyleSheet.create({
   fill: { flex: 1 },
   centeredFill: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xxl, gap: Spacing.lg, backgroundColor: colors.background },
-  mapContainer: { flex: 1 },
-  map: { flex: 1 },
+  mapContainer: { flex: 1, overflow: 'visible' as const },
+  map: Platform.OS === 'android'
+    ? { position: 'absolute' as const, width: SCREEN_WIDTH, height: SCREEN_HEIGHT }
+    : { flex: 1 },
 
   // Map header bar
   mapHeader: {
@@ -23,6 +27,7 @@ export const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
+    zIndex: 10,
   },
   mapHeaderSpacer: {
     flex: 1,

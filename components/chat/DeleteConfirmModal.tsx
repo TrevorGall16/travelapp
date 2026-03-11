@@ -1,7 +1,9 @@
 // components/chat/DeleteConfirmModal.tsx
 
+import { useMemo } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
-import { styles } from '../../styles/eventChatStyles';
+import { createStyles } from '../../styles/eventChatStyles';
+import { useAppTheme } from '../../constants/theme';
 
 interface DeleteConfirmModalProps {
   visible: boolean;
@@ -10,6 +12,8 @@ interface DeleteConfirmModalProps {
 }
 
 export function DeleteConfirmModal({ visible, onClose, onConfirm }: DeleteConfirmModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <Modal
       visible={visible}

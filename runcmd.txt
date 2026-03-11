@@ -37,3 +37,53 @@ If the app opens but can't connect to your computer, remember the "Handshake" co
 
 PowerShell
 adb reverse tcp:8081 tcp:8081
+
+
+If you see the QR code but the app won't open or you get the "Refused" error, run these three commands in order:
+
+1. Kill the Ghosts
+This clears out any dead connections to emu-5562.
+
+Bash
+
+adb kill-server
+
+adb start-server
+
+2. Confirm your Phone is "Seen"
+Make sure your Samsung ID shows up here.
+
+Bash
+adb devices
+
+It should say RZCY20NBCJJ  device. If it says offline, unplug the USB and plug it back in.
+
+3. Bridge the Gap (The "Magic" Command)
+
+
+This tells your phone that port 8081 (the Metro Bundler) is on your computer.
+
+Bash
+adb -s RZCY20NBCJJ reverse tcp:8081 tcp:8081
+
+DO NOT press a (Open on Android): This often triggers the search for an emulator and causes the 5562 error you just saw.
+
+DO NOT use the camera to scan: Since you are using a custom Development Build (not Expo Go), scanning the QR with your camera won't always work correctly.
+
+THE SLICK MOVE: Simply tap the NomadMeet icon already installed on your Samsung.
+
+Because you ran the adb reverse command in Step 3, the app will automatically connect to your computer and start loading the JavaScript.
+
+If it doesn't load immediately, Shake the Phone and select "Reload."
+
+📋 The "Cheat Sheet" for your Notes
+Problem: Error: could not connect to TCP port 5562
+Solution:
+
+adb kill-server
+
+adb start-server
+
+adb -s RZCY20NBCJJ reverse tcp:8081 tcp:8081
+
+Open app manually on phone.

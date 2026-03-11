@@ -325,7 +325,7 @@ const createLocalStyles = (colors: ThemeColors) => StyleSheet.create({
 export default function EditProfileScreen() {
   const { profile, setProfile, user } = useAuthStore();
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, scheme } = useAppTheme();
   const styles = useMemo(() => createLocalStyles(colors), [colors]);
 
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
@@ -441,7 +441,7 @@ export default function EditProfileScreen() {
       {/* ── Header (Glassmorphism) ── */}
       <BlurView
         intensity={80}
-        tint="systemMaterialDark"
+        tint={scheme === 'light' ? 'systemMaterialLight' : 'systemMaterialDark'}
         style={[styles.headerBlur, { paddingTop: 10 }]}
       >
         <View style={styles.headerInner}>

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -48,7 +49,7 @@ function RootLayoutInner() {
   const router = useRouter();
   const segments = useSegments();
   const notificationListenerRef = useRef<Subscription>();
-  const { colors } = useAppTheme();
+  const { colors, scheme } = useAppTheme();
 
   // ── Push notification listeners ────────────────────────────────────────────
   useEffect(() => {
@@ -285,6 +286,7 @@ if (session?.user) {
 
   return (
     <SafeAreaProvider>
+      <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
       <GestureHandlerRootView style={styles.flex}>
         {/* OverlayProvider must live here — above every screen and every KAV —
             so that Stream's gorhom/bottom-sheet snap-point math always operates

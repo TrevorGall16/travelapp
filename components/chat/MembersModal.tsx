@@ -1,8 +1,10 @@
 // components/chat/MembersModal.tsx
 
+import { useMemo } from 'react';
 import { Image } from 'expo-image';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
-import { styles } from '../../styles/eventChatStyles';
+import { createStyles } from '../../styles/eventChatStyles';
+import { useAppTheme } from '../../constants/theme';
 
 export interface MemberEntry {
   user?: { id?: string; name?: string; image?: string | null };
@@ -26,6 +28,8 @@ export function MembersModal({
   insetsBottom,
   onNavigateToUser,
 }: MembersModalProps) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <Modal
       visible={visible}
