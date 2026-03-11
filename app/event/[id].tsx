@@ -10,6 +10,7 @@ import {
   Pressable,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -154,15 +155,28 @@ export default function EventChatScreen() {
 
   const channelRef = useRef<StreamChannel | null>(null);
 
-  // ── Keyboard-aware bottom spacer (Android: 60px when hidden, 0 when shown) ──
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  // ── Manual Shrink: Samsung keyboard fix (CLAUDE.md §2) ──────────────────
+  // Android `adjustResize` fails with `translucent: true`. Instead of relying
+  // on OS resize or marginBottom hacks, we manually shrink the chat container
+  // by listening to keyboard events and computing the available height.
+  // 130 = bottom tab bar (~50) + Android nav bar (~48) + safe-area padding (~32).
+  const HEADER_HEIGHT = 56;
+  const TAB_BAR_OFFSET = 130;
+  const { height: windowHeight } = useWindowDimensions();
+  const [containerHeight, setContainerHeight] = useState(
+    Platform.OS === 'android' ? windowHeight - HEADER_HEIGHT - TAB_BAR_OFFSET : 0,
+  );
+
   useEffect(() => {
     if (Platform.OS !== 'android') return;
-    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setContainerHeight(windowHeight - e.endCoordinates.height - HEADER_HEIGHT);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setContainerHeight(windowHeight - HEADER_HEIGHT - TAB_BAR_OFFSET);
+    });
     return () => { showSub.remove(); hideSub.remove(); };
-  }, []);
-  const bottomSpacer = Platform.OS === 'android' && !keyboardVisible ? 60 : 0;
+  }, [windowHeight]);
 
   const isHost = user?.id === eventHostId;
 
@@ -698,7 +712,10 @@ return (
         </View>
 
         {/* ─── Zone B + C: Chat area (flex: 1) ─────────────────────────── */}
-        <View style={[styles.chatContainer, { marginBottom: bottomSpacer }]}>
+        <View style={[
+          styles.chatContainer,
+          Platform.OS === 'android' && { height: containerHeight, flex: undefined },
+        ]}>
           {!streamChannel ? (
             <View style={styles.centeredFill}>
               <ActivityIndicator size="large" color={colors.accent} />
