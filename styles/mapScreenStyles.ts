@@ -7,7 +7,7 @@ import { Radius, Shadows, Spacing } from '../constants/theme';
 export const createStyles = (colors: ThemeColors) => StyleSheet.create({
   fill: { flex: 1 },
   centeredFill: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xxl, gap: Spacing.lg, backgroundColor: colors.background },
-  mapContainer: { ...StyleSheet.absoluteFillObject, zIndex: 0, backgroundColor: '#e5e7eb' },
+  mapContainer: { ...StyleSheet.absoluteFillObject, zIndex: 0 },
   map: { flex: 1 },
 
   // Map header bar

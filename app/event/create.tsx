@@ -212,16 +212,6 @@ export default function CreateEventScreen() {
 
       if (!response.ok) throw new Error(`SERVER SAID: ${data?.error ?? JSON.stringify(data)}`);
 
-      // TODO: Re-enable after testing — temporarily bypassed to unblock event creation
-      // if (data?.code === 'LIMIT_REACHED') {
-      //   Alert.alert(
-      //     'Event Limit Reached',
-      //     'Free users can have 1 active event at a time.\n\nGet Verified for €4.99 to create unlimited events.',
-      //     [{ text: 'OK' }],
-      //   );
-      //   return;
-      // }
-
       if (!data?.event?.id) {
         console.error('[CreateEvent] Server response had no event.id:', JSON.stringify(data));
         throw new Error(data?.error ?? 'create-event returned no event id');

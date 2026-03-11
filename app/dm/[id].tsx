@@ -157,6 +157,7 @@ export default function DMChatScreen() {
           <Channel
             channel={channel}
             keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : undefined}
+            disableKeyboardCompatibleView={Platform.OS === 'android'}
             MessageSimple={BlockFilteredMessage}
             InputButtons={ChatInputButtons}
             hasImagePicker

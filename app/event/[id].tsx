@@ -594,8 +594,10 @@ export default function EventChatScreen() {
 //   Zone C (Fixed Bottom): MessageInput — app-owned, fixed baseline
 //
 // Keyboard ownership:
-//   Android: OS-owned "pan" (softwareKeyboardLayoutMode). KCV disabled.
-//   iOS: Stream KCV enabled. keyboardVerticalOffset = header area above chat.
+//   Android: OS-owned "adjustResize" (softwareKeyboardLayoutMode: "resize").
+//            statusBar.translucent: false ensures adjustResize works correctly.
+//            Stream KCV is disabled to prevent double-adjustment.
+//   iOS: Stream KCV enabled. keyboardVerticalOffset = insets.top + header height.
 
 return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -685,9 +687,7 @@ return (
         </View>
 
         {/* ─── Zone B + C: Chat area (flex: 1) ─────────────────────────── */}
-        {/* marginBottom: 100 forces the entire Stream UI to stop 100px before
-            the bottom of the screen, shoving the input bar above the nav bar. */}
-        <View style={{ flex: 1, marginBottom: 50, backgroundColor: 'transparent' }}>
+        <View style={styles.chatContainer}>
           {!streamChannel ? (
             <View style={styles.centeredFill}>
               <ActivityIndicator size="large" color={colors.accent} />
@@ -697,7 +697,7 @@ return (
           <Chat client={streamClient} style={getStreamTheme(colors)}>
               <Channel
                 channel={streamChannel}
-                keyboardVerticalOffset={Platform.OS === 'android' ? -20 : 60}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : undefined}
                 disableKeyboardCompatibleView={Platform.OS === 'android'}
                 enableMessageReactions
                 enableMessageReplies

@@ -2,7 +2,7 @@
 // Trigger: Client call from app/event/create.tsx
 // Responsibilities:
 //   1. Verify caller JWT
-//   2. Enforce free-user active event limit (1 active)
+//   2. Fetch host profile (for Stream upsert)
 //   3. Insert event row with PostGIS location + city column
 //   4. Insert host into event_participants (DB trigger auto-increments participant_count)
 //   5. Create Stream.io channel and add host as member
